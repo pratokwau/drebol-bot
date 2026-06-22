@@ -85,6 +85,9 @@ WorkingDirectory=$ROOT
 ExecStart=$ROOT/.venv/bin/python $ROOT/main.py
 Restart=always
 RestartSec=2
+TimeoutStartSec=30
+TimeoutStopSec=10
+KillMode=mixed
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre=/usr/bin/test -x $ROOT/.venv/bin/python
 
