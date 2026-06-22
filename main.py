@@ -8,6 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 sys.stdout.reconfigure(encoding='utf-8')
 
 from aiogram import types, F
+from aiogram.types import BotCommand
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from loader import bot, dp
 from config import ADMIN_ID
@@ -239,6 +240,12 @@ async def main():
 
     print("[INFO] Запуск бота...")
 
+    async def setup_bot_commands():
+        await bot.set_my_commands([
+            BotCommand(command="start", description="Главное меню"),
+            BotCommand(command="cancel", description="Выход из действия"),
+        ])
+
     @dp.callback_query(F.data.startswith("restart_mute_"))
     async def cb_restart_mute(call: types.CallbackQuery):
         minutes = int(call.data.split("_")[2])
@@ -275,6 +282,7 @@ async def main():
                 pass
 
     await notify_restart()
+    await setup_bot_commands()
 
     while True:
         try:
