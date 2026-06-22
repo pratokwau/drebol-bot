@@ -44,6 +44,8 @@ def save_groups(groups: List[int]):
 
 
 authorized_users = load_users()
+if ADMIN_ID and ADMIN_ID not in authorized_users:
+    authorized_users.append(ADMIN_ID)
 
 
 def is_authorized(user_id: int) -> bool:

@@ -1,20 +1,24 @@
 # Drebolbot
 
+## О проекте
+
+Drebolbot - Telegram-бот для администрирования, работы с доступами, VPN, XUI, FunPay, AI и связанными сервисами.
+
 ## Установка
 
-Можно ставить одной командой, как Cardinal или 3x-ui:
+Самый простой способ - одна команда, как у Cardinal или 3x-ui:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/pratokwau/drebolbot/main/install.sh)
 ```
 
-Если удобнее через `wget`, то так:
+Если удобнее через `wget`:
 
 ```bash
 wget https://raw.githubusercontent.com/pratokwau/drebolbot/main/install.sh -O install.sh && bash install.sh
 ```
 
-Если хочешь ставить через `git clone`, используй так:
+Если хочешь через `git clone`:
 
 ```bash
 git clone https://github.com/pratokwau/drebolbot.git
@@ -25,87 +29,68 @@ chmod +x install.sh
 
 Установщик:
 
-1. Удаляет старую установку из `/root/drebolbot` и ставит бота заново.
-2. Спрашивает `TOKEN` и `ADMIN_ID`.
-3. Сам создаёт пустой `authorized.json` и показывает его путь.
-4. Сам создаёт `data/inventory.json`.
-5. Автоматически ставит системные пакеты и Python-зависимости в `.venv`.
-6. Регистрирует `systemd`-сервис, чтобы бот поднимался после перезагрузки.
-7. Оставляет `XUI_URL`, `XUI_TOKEN`, `GROQ_API_KEY` и `OPENROUTER_API_KEY` для настройки уже в меню бота.
+1. Полностью удаляет старую установку из `/root/drebolbot`.
+2. Ставит нужные системные пакеты и Python-venv под текущую версию Python.
+3. Спрашивает только `TOKEN` и `ADMIN_ID`.
+4. Сам создаёт пустой `authorized.json` и показывает путь к нему.
+5. Сам создаёт `data/inventory.json`.
+6. Ставит зависимости в `.venv`.
+7. Регистрирует `systemd`-сервис для автозапуска после перезагрузки.
 
-## После установки
+## Что настраивается внутри бота
 
-- `authorized.json` потом можно заменить по показанному пути.
-- `XUI_URL` и `XUI_TOKEN` задаются в меню XUI в боте.
-- `GROQ_API_KEY` и `OPENROUTER_API_KEY` задаются в админ-меню в боте.
-- `FP_TOKEN` по-прежнему настраивается внутри соответствующего хендлера.
+- `FP_TOKEN` настраивается в соответствующем хендлере.
+- `GROQ_API_KEY` и `OPENROUTER_API_KEY` настраиваются в админ-меню.
+- `XUI_URL` и `XUI_TOKEN` настраиваются в меню XUI внутри бота.
+
+## Авторизация
+
+- `authorized.json` создаётся автоматически пустым.
+- Админский `ADMIN_ID` добавляется в список авторизованных автоматически, чтобы админ не получал “нет доступа” при первом запуске.
 
 ## Обновление
 
-Если в репозитории появилась новая версия, в админ-панели будет кнопка обновления:
+Если в репозитории появляется новая версия, в админ-панели будет кнопка:
 
 - `🔄 Обновиться (есть новая версия)`
 - `🔄 Обновиться (нет новой версии)`
 
-Обновление подтягивает код из Git и перезапускает сервис, не трогая:
+Обновление:
 
-- `data/`
-- `users/`
-- локальные базы
-- `.env`
+- подтягивает код из Git;
+- перезапускает сервис;
+- не трогает `data/`;
+- не трогает `users/`;
+- не трогает локальные базы;
+- не трогает `.env`.
 
----
+## VPN-only режим
 
-## Install
+В боте есть отдельный режим, когда у пользователя есть только VPN-доступ, но нет полного доступа ко всем функциям.
 
-You can install it with a single command, like Cardinal or 3x-ui:
+Что видит VPN-only пользователь:
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/pratokwau/drebolbot/main/install.sh)
-```
+- `/start`
+- `/status`
+- `/myvpn`
+- `/settings`
 
-If you prefer `wget`:
+Как это работает:
 
-```bash
-wget https://raw.githubusercontent.com/pratokwau/drebolbot/main/install.sh -O install.sh && bash install.sh
-```
+- проверка команд идёт через middleware;
+- если пользователь не имеет полного доступа, но привязан к VPN, он получает урезанное меню;
+- если команда запрещена, бот показывает отказ и список доступных команд;
+- админ может переводить пользователя между полным доступом и VPN-only режимом через админ-панель;
+- данные VPN-only пользователей хранятся отдельно в `data/vpn_only_users.json`.
 
-If you want to use `git clone`:
+## Файлы данных
 
-```bash
-git clone https://github.com/pratokwau/drebolbot.git
-cd drebolbot
-chmod +x install.sh
-./install.sh
-```
+- `authorized.json` - полный список авторизованных пользователей
+- `data/inventory.json` - база товаров
+- `data/access_requests.json` - заявки на доступ
+- `data/vpn_only_users.json` - список VPN-only пользователей
+- `data/command_restrictions.json` - ограничения команд
 
-The installer:
+## Примечание
 
-1. Removes any old installation from `/root/drebolbot` and installs the bot from scratch.
-2. Asks for `TOKEN` and `ADMIN_ID`.
-3. Creates an empty `authorized.json` and prints its path.
-4. Creates `data/inventory.json` automatically.
-5. Automatically installs system packages and Python dependencies into `.venv`.
-6. Registers a `systemd` service so the bot restarts after reboot.
-7. Leaves `XUI_URL`, `XUI_TOKEN`, `GROQ_API_KEY`, and `OPENROUTER_API_KEY` to be configured later from the bot menus.
-
-## After install
-
-- `authorized.json` can be replaced later at the printed path.
-- `XUI_URL` and `XUI_TOKEN` are set from the XUI menu in the bot.
-- `GROQ_API_KEY` and `OPENROUTER_API_KEY` are set from the admin menu in the bot.
-- `FP_TOKEN` is still configured inside the relevant handler later.
-
-## Update
-
-If a new version appears in the repository, the admin panel shows an update button:
-
-- `🔄 Обновиться (есть новая версия)`
-- `🔄 Обновиться (нет новой версии)`
-
-The update pulls code from Git and restarts the service without touching:
-
-- `data/`
-- `users/`
-- local databases
-- `.env`
+`authorized.json` можно заменить своим бэкапом позже, по указанному пути.
