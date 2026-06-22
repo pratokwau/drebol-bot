@@ -12,6 +12,8 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+cd /root
+
 ensure_apt_packages() {
   local missing=()
   for pkg in "${APT_PACKAGES[@]}"; do
