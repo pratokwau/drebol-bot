@@ -5,6 +5,7 @@ ROOT="/root/drebolbot"
 SERVICE_NAME="drebolbot"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 REPO_URL="https://github.com/pratokwau/drebolbot.git"
+APT_PACKAGES=(git python3 python3-venv python3-pip)
 
 if [[ $EUID -ne 0 ]]; then
   echo "Run this installer as root."
@@ -12,6 +13,21 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 mkdir -p "$ROOT"
+
+ensure_apt_packages() {
+  local missing=()
+  for pkg in "${APT_PACKAGES[@]}"; do
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+      missing+=("$pkg")
+    fi
+  done
+
+  if (( ${#missing[@]} > 0 )); then
+    echo "Installing system packages: ${missing[*]}"
+    apt-get update
+    apt-get install -y "${missing[@]}"
+  fi
+}
 
 if [[ ! -d "$ROOT/.git" ]]; then
   if [[ -n "$(ls -A "$ROOT" 2>/dev/null || true)" ]]; then
@@ -24,23 +40,14 @@ fi
 
 python3 "$ROOT/install/install.py"
 
-ensure_python_venv() {
-  if python3 -m venv "$ROOT/.venv" >/dev/null 2>&1; then
-    return 0
-  fi
+ensure_apt_packages
 
-  echo "python3-venv is missing, installing required packages..."
-  apt-get update
-  apt-get install -y python3-venv python3-pip
+if [[ ! -d "$ROOT/.venv" ]]; then
   python3 -m venv "$ROOT/.venv"
-}
-
-if command -v python3 >/dev/null 2>&1; then
-  if [[ ! -d "$ROOT/.venv" ]]; then
-    ensure_python_venv
-  fi
-  "$ROOT/.venv/bin/pip" install -r "$ROOT/requirements.txt"
 fi
+
+"$ROOT/.venv/bin/python" -m pip install --upgrade pip setuptools wheel
+"$ROOT/.venv/bin/python" -m pip install -r "$ROOT/requirements.txt"
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
