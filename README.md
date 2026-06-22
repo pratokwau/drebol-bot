@@ -13,11 +13,11 @@ chmod +x install/install.sh
 
 Установщик:
 
-1. Копирует проект в `/root/drebolbot`.
+1. Удаляет старую установку из `/root/drebolbot` и ставит бота заново.
 2. Спрашивает `TOKEN` и `ADMIN_ID`.
 3. Сам создаёт пустой `authorized.json` и показывает его путь.
 4. Сам создаёт `data/inventory.json`.
-5. Ставит зависимости в `.venv`.
+5. Автоматически ставит системные пакеты и Python-зависимости в `.venv`.
 6. Регистрирует `systemd`-сервис, чтобы бот поднимался после перезагрузки.
 7. Оставляет `XUI_URL`, `XUI_TOKEN`, `GROQ_API_KEY` и `OPENROUTER_API_KEY` для настройки уже в меню бота.
 
@@ -57,11 +57,11 @@ chmod +x install/install.sh
 
 The installer:
 
-1. Copies the project to `/root/drebolbot`.
+1. Removes any old installation from `/root/drebolbot` and installs the bot from scratch.
 2. Asks for `TOKEN` and `ADMIN_ID`.
 3. Creates an empty `authorized.json` and prints its path.
 4. Creates `data/inventory.json` automatically.
-5. Installs dependencies into `.venv`.
+5. Automatically installs system packages and Python dependencies into `.venv`.
 6. Registers a `systemd` service so the bot restarts after reboot.
 7. Leaves `XUI_URL`, `XUI_TOKEN`, `GROQ_API_KEY`, and `OPENROUTER_API_KEY` to be configured later from the bot menus.
 

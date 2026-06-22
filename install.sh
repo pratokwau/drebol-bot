@@ -29,18 +29,21 @@ ensure_apt_packages() {
   fi
 }
 
-if [[ ! -d "$ROOT/.git" ]]; then
-  if [[ -n "$(ls -A "$ROOT" 2>/dev/null || true)" ]]; then
-    echo "$ROOT exists and is not a git repo."
-    echo "Remove it or clone the repository there manually, then rerun this script."
-    exit 1
-  fi
-  git clone "$REPO_URL" "$ROOT"
+ensure_apt_packages
+
+if systemctl list-unit-files | grep -q "^${SERVICE_NAME}\.service"; then
+  systemctl stop "$SERVICE_NAME" || true
+  systemctl disable "$SERVICE_NAME" || true
 fi
 
-python3 "$ROOT/install/install.py"
+rm -f "$SERVICE_FILE"
+systemctl daemon-reload || true
 
-ensure_apt_packages
+cd /tmp
+rm -rf "$ROOT"
+git clone "$REPO_URL" "$ROOT"
+
+python3 "$ROOT/install/install.py"
 
 if [[ ! -d "$ROOT/.venv" ]]; then
   python3 -m venv "$ROOT/.venv"
