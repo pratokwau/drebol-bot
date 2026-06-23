@@ -27,7 +27,7 @@ async def xui_get(path: str) -> dict:
     try:
         headers = {
             "Authorization": f"Bearer {xui_token}",
-            "Content-Type": "application/json",
+            "Accept": "application/json",
         }
         async with session.get(f"{xui_url}{path}", headers=headers, ssl=False) as resp:
             text = await resp.text()

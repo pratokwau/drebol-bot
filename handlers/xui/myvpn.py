@@ -86,11 +86,22 @@ async def cb_myvpn(call: types.CallbackQuery, state: FSMContext):
     # Берём актуальный uuid из API (кэш может быть устаревшим)
     uuid_val = client.get("id") or uuid_val
     sub_id = client.get("subId", "") or ""
+    if not sub_id:
+        return await call.message.answer(
+            "❌ <b>Не удалось получить ссылку подписки</b>\n\n"
+            "Причина: у клиента пустой <code>subId</code>.",
+            parse_mode=ParseMode.HTML
+        )
 
     if action == "link":
-        link = await fetch_subscription_link(email, sub_id)
+        link, logs = await fetch_subscription_link(email, sub_id, debug=True)
         if not link:
-            return await call.answer("Ссылка подписки не найдена", show_alert=True)
+            err = "\n".join(logs[-5:]) if logs else "no logs"
+            return await call.message.answer(
+                "❌ <b>Не удалось получить ссылку подписки</b>\n\n"
+                f"<code>{err}</code>",
+                parse_mode=ParseMode.HTML
+            )
         await call.answer()
         await call.message.answer(
             f"🔗 <b>Ссылка на подписку ({email}):</b>\n\n<code>{link}</code>\n\n<i>Нажмите чтобы скопировать</i>",
@@ -98,9 +109,14 @@ async def cb_myvpn(call: types.CallbackQuery, state: FSMContext):
         )
 
     elif action == "inst":
-        link = await fetch_subscription_link(email, sub_id)
+        link, logs = await fetch_subscription_link(email, sub_id, debug=True)
         if not link:
-            return await call.answer("Ссылка подписки не найдена", show_alert=True)
+            err = "\n".join(logs[-5:]) if logs else "no logs"
+            return await call.message.answer(
+                "❌ <b>Не удалось получить ссылку подписки</b>\n\n"
+                f"<code>{err}</code>",
+                parse_mode=ParseMode.HTML
+            )
         text = build_instruction_text(link, device_name=email)
         await call.answer("⏳")
         await call.message.answer(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)

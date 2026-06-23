@@ -6,6 +6,7 @@ import re
 
 from handlers.xui.api.client import xui_get
 from handlers.xui.api.helpers import parse_stream_settings
+from handlers.xui.config_runtime import get_xui_url
 
 
 def get_server_host() -> str:
@@ -53,53 +54,46 @@ def _normalize_sub_path(path_value) -> str:
 
 
 async def _get_subscription_base() -> str | None:
-    from handlers.xui.config_runtime import get_xui_url
-
-    result = await xui_get("/panel/setting/all")
-    if not result or not result.get("success"):
-        return None
-
-    obj = result.get("obj")
-    if obj is None:
-        return None
-    if isinstance(obj, str):
-        try:
-            obj = json.loads(obj)
-        except Exception:
-            return None
-
     xui_url = get_xui_url() or ""
     parsed = urlparse(xui_url)
     scheme = parsed.scheme or "https"
     host = parsed.hostname or get_server_host() or ""
     if not host:
         return None
-
-    port_value = _find_setting(obj, want_port=True)
-    path_value = _normalize_sub_path(_find_setting(obj, want_path=True))
-
-    if port_value:
-        try:
-            port = int(str(port_value).strip())
-        except Exception:
-            port = None
-        if port:
-            return f"{scheme}://{host}:{port}{path_value}"
-
-    # Если порт не нашли, лучше не подставлять vless или случайную ссылку.
-    return None
+    # Subscription endpoint в 3X-UI обычно живёт отдельно от панели.
+    # Для твоего кейса панель на 2053, а подписка на 2096.
+    port = 2096
+    return f"{scheme}://{host}:{port}/sub"
 
 
-async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
+async def fetch_subscription_link(email: str, sub_id: str = "", debug: bool = False):
     email = str(email or "").strip()
     sub_id = str(sub_id or "").strip()
+    logs: list[str] = []
+
+    def _log(message: str):
+        msg = f"[XUI SUB] {message}"
+        logs.append(msg)
+        print(msg)
+
     if not email and not sub_id:
-        return None
+        _log("skip: empty email and sub_id")
+        return (None, logs) if debug else None
+
+    _log(f"start email={email!r} sub_id={sub_id!r}")
+
+    if not sub_id:
+        _log("fail: sub_id is empty in client data")
+        return (None, logs) if debug else None
 
     base = await _get_subscription_base()
-    if base and sub_id:
-        return f"{base.rstrip('/')}/{quote(sub_id, safe='')}"
-    return None
+    if not base:
+        _log("fail: subscription base not found in /panel/setting/all")
+        return (None, logs) if debug else None
+
+    link = f"{base.rstrip('/')}/{quote(sub_id, safe='')}"
+    _log(f"ok: built subscription link = {link}")
+    return (link, logs) if debug else link
 
 
 def build_vless_link(inbound: dict, client_uuid: str, email: str, client_flow: str = "") -> str | None:
