@@ -164,6 +164,11 @@ async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
             return (1, 0, u)
         return (0, 0, u)
 
+    base = await _get_subscription_base()
+    if base and sub_id:
+        return f"{base.rstrip('/')}/{quote(sub_id, safe='')}"
+
+    # Запасной путь: пробуем получить хоть что-то из панели, если base не удалось определить.
     results = []
     if sub_id:
         results.append(await xui_get(f"/panel/api/clients/subLinks/{quote(sub_id, safe='')}"))
@@ -188,10 +193,7 @@ async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
     normalized.sort(key=_score_url, reverse=True)
     best = normalized[0].strip()
     if best.lower().startswith("vless://"):
-        # Если панель вернула только vless, пробуем собрать именно subscription URL из настроек.
-        base = await _get_subscription_base()
-        if base and sub_id:
-            return f"{base.rstrip('/')}/{quote(sub_id, safe='')}"
+        return None
     return best
 
 
