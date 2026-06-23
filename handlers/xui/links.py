@@ -193,6 +193,10 @@ async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
     normalized.sort(key=_score_url, reverse=True)
     best = normalized[0].strip()
     if best.lower().startswith("vless://"):
+        # Если панель вернула только vless, пробуем собрать именно subscription URL из настроек.
+        base = await _get_subscription_base()
+        if base and sub_id:
+            return f"{base.rstrip('/')}/{quote(sub_id, safe='')}"
         return None
     return best
 
