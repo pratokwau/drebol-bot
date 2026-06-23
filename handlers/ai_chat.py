@@ -18,10 +18,11 @@ from groq import Groq
 
 from loader import is_authorized, is_authorized_context
 from handlers.utils import no_access_reply, no_access_callback
-from handlers.ai_runtime import get_groq_api_key
+from handlers.ai_runtime import get_groq_api_key, get_openrouter_api_key
 
 router = Router()
 groq_client = None
+openrouter_client = None
 EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
 
 
@@ -33,6 +34,23 @@ def _get_groq_client():
     if groq_client is None or getattr(groq_client, "api_key", None) != key:
         groq_client = Groq(api_key=key)
     return groq_client
+
+
+def _get_openrouter_client():
+    global openrouter_client
+    key = get_openrouter_api_key()
+    if not key:
+        return None
+    if openrouter_client is None:
+        try:
+            from openai import OpenAI
+            openrouter_client = OpenAI(
+                api_key=key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+        except Exception:
+            openrouter_client = None
+    return openrouter_client
 
 
 def _ai_not_configured_text() -> str:
@@ -424,44 +442,71 @@ async def _process_ai_message(message: types.Message, state: FSMContext, user_te
 
     thinking_msg = await message.answer("🤖 <i>Думаю...</i>", parse_mode=ParseMode.HTML)
 
-    try:
-        response = client.chat.completions.create(
-            model=AI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Ты полезный ассистент. Отвечай чётко и по делу. "
-                        "Если вопрос про бизнес или торговлю — давай конкретные советы. "
-                        "ВАЖНО: не используй Markdown, LaTeX, звёздочки, решётки, знаки доллара и любое другое форматирование. "
-                        "Пиши только обычным текстом. Формулы пиши словами или простыми символами."
-                    )
-                }
-            ] + messages,
-            max_tokens=1024,
-            temperature=0.7
-        )
+    providers = [
+        ("groq", AI_MODEL),
+        ("openrouter", "meta-llama/llama-3.3-70b-instruct:free"),
+        ("openrouter", "qwen/qwen3-next-80b-a3b-instruct:free"),
+        ("openrouter", "openai/gpt-oss-120b:free"),
+    ]
 
-        ai_reply = clean_response(response.choices[0].message.content)
-        messages.append({"role": "assistant", "content": ai_reply})
+    system_prompt = (
+        "Ты полезный ассистент. Отвечай чётко и по делу. "
+        "Если вопрос про бизнес или торговлю — давай конкретные советы. "
+        "ВАЖНО: не используй Markdown, LaTeX, звёздочки, решётки, знаки доллара и любое другое форматирование. "
+        "Пиши только обычным текстом. Формулы пиши словами или простыми символами."
+    )
 
-        # Сохраняем ответ AI
-        chat["messages"] = messages
-        chats[chat_id] = chat
-        save_chats(user_id, chats)
+    last_error = None
+    response_text = None
 
-        await thinking_msg.delete()
-        if _wants_voice(user_text):
-            await _send_as_voice(message, ai_reply)
-        else:
-            await message.answer(
-                f"🤖 {ai_reply}{EXIT_HINT}",
-                reply_markup=chat_actions_kb(chat_id)
+    for provider, model_name in providers:
+        try:
+            if provider == "groq":
+                model_client = _get_groq_client()
+            else:
+                model_client = _get_openrouter_client()
+
+            if model_client is None:
+                continue
+
+            response = model_client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                ] + messages,
+                max_tokens=1024,
+                temperature=0.7,
             )
+            response_text = response.choices[0].message.content if response.choices else None
+            if response_text:
+                break
+        except Exception as e:
+            last_error = e
+            continue
 
-    except Exception as e:
-        await thinking_msg.delete()
-        await message.answer(f"❌ Ошибка AI: <code>{e}</code>", parse_mode=ParseMode.HTML)
+    await thinking_msg.delete()
+
+    if not response_text:
+        if last_error:
+            await message.answer(f"❌ Ошибка AI: <code>{last_error}</code>", parse_mode=ParseMode.HTML)
+        else:
+            await message.answer("❌ Ошибка AI: не удалось получить ответ.")
+        return
+
+    ai_reply = clean_response(response_text)
+    messages.append({"role": "assistant", "content": ai_reply})
+
+    chat["messages"] = messages
+    chats[chat_id] = chat
+    save_chats(user_id, chats)
+
+    if _wants_voice(user_text):
+        await _send_as_voice(message, ai_reply)
+    else:
+        await message.answer(
+            f"🤖 {ai_reply}{EXIT_HINT}",
+            reply_markup=chat_actions_kb(chat_id)
+        )
 
 
 @router.message(AiStates.waiting_input, F.text)
