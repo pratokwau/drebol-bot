@@ -1,9 +1,7 @@
 # handlers/xui/links.py
 
 from urllib.parse import quote, urlparse
-import json
 import re
-from collections.abc import Iterable
 
 from handlers.xui.api.client import xui_get
 from handlers.xui.api.helpers import parse_stream_settings
@@ -14,38 +12,43 @@ def get_server_host() -> str:
     return urlparse(get_xui_url() or "").hostname
 
 
-def _walk_strings(value) -> list[str]:
-    if isinstance(value, str):
-        text = value.strip()
-        return [text] if text else []
+def _find_setting(value, *, want_port: bool = False, want_path: bool = False):
     if isinstance(value, dict):
-        found: list[str] = []
-        for item in value.values():
-            found.extend(_walk_strings(item))
-        return found
-    if isinstance(value, list):
-        found: list[str] = []
-        for item in value:
-            found.extend(_walk_strings(item))
-        return found
-    return []
-
-
-def _find_first_key(value, keys: tuple[str, ...]):
-    if isinstance(value, dict):
-        for key in keys:
-            if key in value and value.get(key) not in (None, ""):
-                return value.get(key)
-        for item in value.values():
-            found = _find_first_key(item, keys)
+        for key, inner in value.items():
+            key_l = str(key).lower()
+            if want_port and "sub" in key_l and "port" in key_l and inner not in (None, ""):
+                return inner
+            if want_path and "sub" in key_l and any(part in key_l for part in ("path", "url")) and inner not in (None, ""):
+                return inner
+            found = _find_setting(inner, want_port=want_port, want_path=want_path)
             if found not in (None, ""):
                 return found
     elif isinstance(value, list):
         for item in value:
-            found = _find_first_key(item, keys)
+            found = _find_setting(item, want_port=want_port, want_path=want_path)
             if found not in (None, ""):
                 return found
     return None
+
+
+def _normalize_sub_path(path_value) -> str:
+    path = str(path_value or "").strip()
+    if not path:
+        return "/sub/"
+
+    low = path.lower()
+    for token in (":subid", "{subid}", "<subid>", ":id", "{id}", "<id>"):
+        idx = low.find(token)
+        if idx != -1:
+            path = path[:idx]
+            break
+
+    path = path.strip()
+    if not path.startswith("/"):
+        path = f"/{path}"
+    if not path.endswith("/"):
+        path = f"{path}/"
+    return path
 
 
 async def _get_subscription_base() -> str | None:
@@ -66,40 +69,19 @@ async def _get_subscription_base() -> str | None:
     if not host:
         return None
 
-    raw = json.dumps(obj, ensure_ascii=False, default=str)
-
-    def _pick(patterns: tuple[str, ...]) -> str | None:
-        for pattern in patterns:
-            m = re.search(pattern, raw, flags=re.I | re.S)
-            if m:
-                val = m.group(1).strip()
-                if val:
-                    return val
-        return None
-
-    port_value = _pick((
-        r'"subPort"\s*:\s*"?(\\d+)"?',
-        r'"subscriptionPort"\s*:\s*"?(\\d+)"?',
-        r'"sub_server_port"\s*:\s*"?(\\d+)"?',
-        r'"subscriptionServerPort"\s*:\s*"?(\\d+)"?',
-    ))
-    path_value = _pick((
-        r'"subPath"\s*:\s*"([^"]+)"',
-        r'"subscriptionPath"\s*:\s*"([^"]+)"',
-        r'"subUrl"\s*:\s*"([^"]+)"',
-        r'"subURL"\s*:\s*"([^"]+)"',
-        r'"subscriptionUrl"\s*:\s*"([^"]+)"',
-        r'"subscriptionURL"\s*:\s*"([^"]+)"',
-        r'"jsonPath"\s*:\s*"([^"]+)"',
-        r'"clashPath"\s*:\s*"([^"]+)"',
-    )) or "/sub/"
-
-    if not path_value.startswith("/"):
-        path_value = f"/{path_value}"
+    port_value = _find_setting(obj, want_port=True)
+    path_value = _normalize_sub_path(_find_setting(obj, want_path=True))
 
     if port_value:
-        return f"{scheme}://{host}:{port_value}{path_value}"
-    return f"{scheme}://{host}{path_value}"
+        try:
+            port = int(str(port_value).strip())
+        except Exception:
+            port = None
+        if port:
+            return f"{scheme}://{host}:{port}{path_value}"
+
+    # Если порт не нашли, лучше не подставлять vless или случайную ссылку.
+    return None
 
 
 async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
@@ -108,60 +90,9 @@ async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
     if not email and not sub_id:
         return None
 
-    def _extract_urls(text: str) -> list[str]:
-        return re.findall(r'https?://[^\s"<>\']+', text)
-
-    def _walk(value) -> Iterable[str]:
-        if isinstance(value, str):
-            text = value.strip()
-            if not text:
-                return []
-            found = [text]
-            found.extend(_extract_urls(text))
-            return found
-        if isinstance(value, dict):
-            found: list[str] = []
-            for key in (
-                "subscriptionUrl", "subscriptionURL", "subUrl", "subURL",
-                "subLink", "url", "link", "sub", "subscription", "value",
-                "data", "obj", "result",
-            ):
-                if key in value:
-                    found.extend(_walk(value.get(key)))
-            for item in value.values():
-                found.extend(_walk(item))
-            return found
-        if isinstance(value, list):
-            found: list[str] = []
-            for item in value:
-                found.extend(_walk(item))
-            return found
-        return []
-
-    def _score_url(url: str) -> tuple[int, int, str]:
-        u = str(url or "").strip()
-        if not u:
-            return (0, 0, "")
-        low = u.lower()
-        is_http = 1 if low.startswith(("http://", "https://")) else 0
-        is_sub = 1 if ("/sub/" in low or "subscription" in low) else 0
-        is_vless = 1 if low.startswith("vless://") else 0
-        # Самый высокий приоритет у обычных subscription URL, потом другие http(s), потом всё остальное.
-        if is_sub and is_http:
-            return (4, 1, u)
-        if is_http:
-            return (3, is_sub, u)
-        if low.startswith("subscription://"):
-            return (2, 1, u)
-        if not is_vless:
-            return (1, 0, u)
-        return (0, 0, u)
-
     base = await _get_subscription_base()
     if base and sub_id:
         return f"{base.rstrip('/')}/{quote(sub_id, safe='')}"
-    if not base:
-        return None
     return None
 
 
