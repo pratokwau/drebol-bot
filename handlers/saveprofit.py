@@ -305,7 +305,7 @@ async def process_funpay_prices(message: types.Message, state: FSMContext):
         f"💵 Продажа: <code>{sell_price:.2f} ₽</code>\n"
         f"💰 Чистыми: <b>{profit:.2f} ₽</b>"
     )
-    await message.answer(text + EXIT_HINT, parse_mode=ParseMode.HTML)
+    await message.answer(text, parse_mode=ParseMode.HTML)
     await state.clear()
 
 
@@ -401,7 +401,7 @@ async def process_playerok_prices(message: types.Message, state: FSMContext):
         f"💵 Продажа: <code>{sell_price:.2f} ₽</code>\n"
         f"💰 Чистыми: <b>{profit:.2f} ₽</b>"
     )
-    await message.answer(text + EXIT_HINT, parse_mode=ParseMode.HTML)
+    await message.answer(text, parse_mode=ParseMode.HTML)
     await state.clear()
 
 
