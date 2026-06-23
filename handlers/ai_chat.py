@@ -228,6 +228,11 @@ async def cb_ai(call: types.CallbackQuery, state: FSMContext):
         await no_access_callback(call)
         return
 
+    # Настройки AI обрабатываются отдельным router'ом
+    if call.data.startswith("ai_set_"):
+        await call.answer()
+        return
+
     # В группе — кнопки доступны только тому кто их вызвал
     if call.message.chat.type in ("group", "supergroup"):
         state_data = await state.get_data()
