@@ -44,6 +44,63 @@ def xui_settings_input_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="❌ Отмена", callback_data="xui_settings_cancel"),
     ]])
 
+
+def _inbound_text(inbound: dict) -> str:
+    clients = parse_clients(inbound)
+    stats_map = get_client_stats_map(inbound)
+    total_up = sum(s.get("up", 0) for s in inbound.get("clientStats", []))
+    total_down = sum(s.get("down", 0) for s in inbound.get("clientStats", []))
+    enabled_count = sum(1 for c in clients if c.get("enable", True))
+    protocol = (inbound.get("protocol") or "?").upper()
+    port = inbound.get("port", "?")
+    remark = inbound.get("remark") or f"{protocol}:{port}"
+
+    text = (
+        f"📡 <b>{remark}</b>\n"
+        f"━━━━━━━━━━━━━━\n"
+        f"🔌 Протокол: <b>{protocol}</b>\n"
+        f"🌐 Порт: <b>{port}</b>\n"
+        f"👥 Клиентов: <b>{len(clients)}</b>\n"
+        f"✅ Активных: <b>{enabled_count}</b>\n"
+        f"📤 Отправлено: <b>{format_bytes(total_up)}</b>\n"
+        f"📥 Получено: <b>{format_bytes(total_down)}</b>"
+    )
+
+    if clients:
+        first = clients[0]
+        email = first.get("email")
+        stats = stats_map.get(email, {}) if email else {}
+        if email:
+            text += (
+                f"\n\n👤 Первый клиент: <b>{email}</b>\n"
+                f"📤 {format_bytes(stats.get('up', 0))} | "
+                f"📥 {format_bytes(stats.get('down', 0))}"
+            )
+        text += "\n\nВыберите клиента или действие:"
+    else:
+        text += "\n\n<i>В этом инбаунде пока нет клиентов.</i>"
+
+    return text
+
+
+async def _show_inbound(call: types.CallbackQuery, ib_h: str, page: int = 0):
+    info = _cache.get(ib_h, {})
+    ib_id = info.get("id")
+    if not ib_id:
+        return await call.answer("Инбаунд не найден", show_alert=True)
+
+    inbounds, _ = await api_get_inbounds()
+    inbound = next((ib for ib in inbounds if ib.get("id") == ib_id), None)
+    if not inbound:
+        return await call.answer("Инбаунд не найден", show_alert=True)
+
+    await call.message.edit_text(
+        _inbound_text(inbound),
+        parse_mode=ParseMode.HTML,
+        reply_markup=clients_kb(inbound, page=page),
+    )
+    await call.answer()
+
 @router.message(Command("xui"))
 async def cmd_xui(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -125,6 +182,27 @@ async def cb_xui(call: types.CallbackQuery, state: FSMContext):
             f"Выберите инбаунд:"
         )
         await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=inbounds_kb(inbounds))
+
+    elif data.startswith("xui_ibpg_"):
+        # Пагинация списка клиентов в инбаунде
+        payload = data[len("xui_ibpg_"):]
+        try:
+            ib_h, page_s = payload.rsplit("_", 1)
+            page = int(page_s)
+        except ValueError:
+            return await call.answer("Ошибка данных", show_alert=True)
+        await _show_inbound(call, ib_h, page)
+
+    elif data.startswith("xui_ib_"):
+        # Открыть инбаунд и список его клиентов
+        ib_h = data[len("xui_ib_"):]
+        await _show_inbound(call, ib_h, 0)
+
+    elif data.startswith("xui_cl_"):
+        # Открыть конкретный клиент в инбаунде
+        cl_h = data[len("xui_cl_"):]
+        await call.answer("⏳")
+        await _refresh_client_view(call, cl_h)
 
     elif data == "xui_settings":
         xui_cfg = load_xui_settings()
