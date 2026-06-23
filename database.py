@@ -65,6 +65,7 @@ class ProfitDatabase:
         self.conn.commit()
 
     def load_profits(self):
+        self.create_tables()
         self.cursor.execute(
             "SELECT type, buy_price, sell_price, profit, date FROM profits WHERE user_id = ? ORDER BY id ASC",
             (self.user_id,)
@@ -82,6 +83,7 @@ class ProfitDatabase:
         ]
 
     def save_profits(self, profits):
+        self.create_tables()
         self.cursor.execute("DELETE FROM profits WHERE user_id = ?", (self.user_id,))
         self.cursor.executemany(
             "INSERT INTO profits (user_id, type, buy_price, sell_price, profit, date) VALUES (?, ?, ?, ?, ?, ?)",
