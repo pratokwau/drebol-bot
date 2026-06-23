@@ -3,9 +3,13 @@
 import time
 import uuid as uuid_lib
 from urllib.parse import quote
+from datetime import datetime, timezone
 
 from handlers.xui.api.client import xui_get, xui_post
 from handlers.xui.api.helpers import parse_clients
+
+DEFAULT_EXPIRY_DT = datetime(2050, 12, 12, 0, 0, 0, tzinfo=timezone.utc)
+DEFAULT_EXPIRY_TIME = int(DEFAULT_EXPIRY_DT.timestamp() * 1000)
 
 
 def email_path(email: str) -> str:
@@ -24,7 +28,7 @@ def build_update_payload(client: dict) -> dict:
 
 async def api_add_client(ib_id: int, email: str, expiry_days: int, limit_gb: float, flow: str = "") -> tuple:
     client_uuid = str(uuid_lib.uuid4())
-    expiry_time = int((time.time() + expiry_days * 86400) * 1000) if expiry_days > 0 else 0
+    expiry_time = DEFAULT_EXPIRY_TIME if expiry_days <= 0 else int((time.time() + expiry_days * 86400) * 1000)
     total_bytes = int(limit_gb * 1024 ** 3) if limit_gb > 0 else 0
 
     client = {

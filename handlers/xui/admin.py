@@ -888,7 +888,7 @@ async def xui_input_email(message: types.Message, state: FSMContext):
         return await message.answer("Имя не может быть пустым. Введите снова:")
     await state.update_data(xui_new_email=email)
     await state.set_state(XuiAddClient.expiry)
-    await message.answer("⏳ Срок действия в днях (0 = без ограничений):")
+    await message.answer("⏳ Срок действия в днях (если отправите 0, будет 12.12.2050):")
 
 
 @router.message(XuiAddClient.expiry, F.text)
