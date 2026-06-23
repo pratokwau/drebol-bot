@@ -27,6 +27,8 @@ def cancel_only_kb(callback_data: str = "saveprofit_menu") -> InlineKeyboardMark
 
 
 def parse_date(date_str: str) -> datetime:
+    if not date_str:
+        raise ValueError("Пустая дата")
     for fmt in ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M"]:
         try:
             return datetime.strptime(date_str, fmt)
@@ -36,7 +38,7 @@ def parse_date(date_str: str) -> datetime:
 
 
 def get_sorted_profits(profits: list):
-    return sorted(profits, key=lambda x: parse_date(x["date"]), reverse=True)
+    return sorted(profits, key=lambda x: parse_date(x.get("date", "")), reverse=True)
 
 
 def _money(value) -> float:

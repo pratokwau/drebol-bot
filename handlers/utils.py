@@ -4,6 +4,7 @@ from datetime import datetime
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import INVENTORY_FILE, ADMIN_ID
+from database import ProfitDatabase
 
 REQUESTS_FILE = "data/access_requests.json"
 RESTRICTIONS_FILE = "data/command_restrictions.json"
@@ -154,12 +155,12 @@ async def no_access_callback(call: types.CallbackQuery):
     )
 
 def get_user_dir(user_id: int):
-    dir_path = f"users/{user_id}"
+    dir_path = f"base/{user_id}"
     os.makedirs(dir_path, exist_ok=True)
     return dir_path
 
 def get_profit_file(user_id: int):
-    return f"{get_user_dir(user_id)}/profit.json"
+    return f"{get_user_dir(user_id)}/saveprofit.db"
 
 # --- Функции для Базы Товаров (Inventory) ---
 
@@ -184,31 +185,15 @@ def save_inventory(inventory: dict):
     except Exception as e:
         print(f"Ошибка сохранения inventory.json: {e}")
 
-# --- Прибыль/продажи: SQLite + миграция старого profit.json ---
+# --- Прибыль/продажи: SQLite в base/<tg_id>/saveprofit.db ---
 
 def load_profits(user_id: int):
-    from database import db
-
-    profits = db.load_profits(user_id)
-    if profits:
-        return profits
-
-    file_path = get_profit_file(user_id)
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                legacy_profits = json.load(f)
-            if legacy_profits:
-                db.save_profits(user_id, legacy_profits)
-            return legacy_profits
-        except Exception:
-            return []
-    return []
+    db = ProfitDatabase(user_id)
+    return db.load_profits()
 
 def save_profits(user_id: int, profits: list):
-    from database import db
-
-    db.save_profits(user_id, profits)
+    db = ProfitDatabase(user_id)
+    db.save_profits(profits)
 
 def format_date_now():
     return datetime.now().strftime("%d.%m.%Y %H:%M:%S")
