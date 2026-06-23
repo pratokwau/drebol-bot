@@ -163,7 +163,6 @@ async def _refresh_client_view(call: types.CallbackQuery, cl_h: str):
     expiry = client.get("expiryTime", 0)
     expiry_str = "∞" if not expiry or expiry == 0 else f"{expiry}"
     status = "✅ Активен" if enabled else "❌ Отключён"
-    is_vless = inbound.get("protocol", "").lower() == "vless"
 
     owner_user_key = info.get("owner_uk", "")
     if not owner_user_key:
@@ -196,7 +195,7 @@ async def _refresh_client_view(call: types.CallbackQuery, cl_h: str):
     try:
         await call.message.edit_text(
             text, parse_mode=ParseMode.HTML,
-            reply_markup=client_actions_kb(cl_h, enabled, is_vless, owner_user_key)
+            reply_markup=client_actions_kb(cl_h, enabled, True, owner_user_key)
         )
     except Exception:
         pass

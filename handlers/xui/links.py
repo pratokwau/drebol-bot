@@ -1,6 +1,7 @@
 # handlers/xui/links.py
 
 from urllib.parse import quote, urlparse
+import re
 
 from handlers.xui.api.client import xui_get
 from handlers.xui.api.helpers import parse_stream_settings
@@ -25,6 +26,9 @@ async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
     if not result or not result.get("success"):
         return None
 
+    def _extract_urls(text: str) -> list[str]:
+        return re.findall(r'https?://[^\s"<>\']+', text)
+
     def _score_url(url: str) -> tuple[int, str]:
         u = url.strip()
         if not u:
@@ -36,39 +40,55 @@ async def fetch_subscription_link(email: str, sub_id: str = "") -> str | None:
             return (3, u)
         if low.startswith("subscription://"):
             return (2, u)
-        if low.startswith("vless://"):
-            return (1, u)
         return (0, u)
 
     candidates: list[str] = []
 
     obj = result.get("obj")
     if isinstance(obj, str) and obj.strip():
-        candidates.append(obj.strip())
+        raw = obj.strip()
+        candidates.append(raw)
+        candidates.extend(_extract_urls(raw))
     elif isinstance(obj, list):
         for item in obj:
             if isinstance(item, str) and item.strip():
-                candidates.append(item.strip())
+                raw = item.strip()
+                candidates.append(raw)
+                candidates.extend(_extract_urls(raw))
             elif isinstance(item, dict):
                 for key in ("subscriptionUrl", "subUrl", "subLink", "url", "link", "sub", "subscription", "value"):
                     val = item.get(key)
                     if isinstance(val, str) and val.strip():
-                        candidates.append(val.strip())
+                        raw = val.strip()
+                        candidates.append(raw)
+                        candidates.extend(_extract_urls(raw))
         # Не останавливаемся на первом значении: выбираем лучший вариант.
     elif isinstance(obj, dict):
         for key in ("subscriptionUrl", "subUrl", "subLink", "url", "link", "sub", "subscription", "value"):
             val = obj.get(key)
             if isinstance(val, str) and val.strip():
-                candidates.append(val.strip())
+                raw = val.strip()
+                candidates.append(raw)
+                candidates.extend(_extract_urls(raw))
         for val in obj.values():
             if isinstance(val, str) and val.strip():
-                candidates.append(val.strip())
+                raw = val.strip()
+                candidates.append(raw)
+                candidates.extend(_extract_urls(raw))
 
     if not candidates:
         return None
 
-    candidates.sort(key=_score_url, reverse=True)
-    best = candidates[0].strip()
+    candidates = [c.strip() for c in candidates if c and c.strip()]
+    http_candidates = []
+    for c in candidates:
+        low = c.lower()
+        if low.startswith("http://") or low.startswith("https://") or low.startswith("subscription://"):
+            http_candidates.append(c)
+
+    chosen_pool = http_candidates or candidates
+    chosen_pool.sort(key=_score_url, reverse=True)
+    best = chosen_pool[0].strip()
     if best.lower().startswith("vless://"):
         return None
     return best
