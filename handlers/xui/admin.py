@@ -225,9 +225,14 @@ async def cb_xui(call: types.CallbackQuery, state: FSMContext):
         sub_id = ""
         if cl_api:
             sub_id = cl_api.get("subId", "") or ""
-        link = await fetch_subscription_link(email, sub_id)
+        link, logs = await fetch_subscription_link(email, sub_id, debug=True)
         if not link:
-            return await call.answer("Не удалось получить ссылку подписки", show_alert=True)
+            err = "\n".join(logs[-5:]) if logs else "no logs"
+            return await call.message.answer(
+                "❌ <b>Не удалось получить ссылку подписки</b>\n\n"
+                f"<code>{err}</code>",
+                parse_mode=ParseMode.HTML
+            )
         text = build_instruction_text(link, device_name=email)
         await call.answer("⏳")
         await call.message.answer(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
@@ -734,11 +739,12 @@ async def cb_xui(call: types.CallbackQuery, state: FSMContext):
             client = await api_get_client(email)
             if client:
                 sub_id = client.get("subId", "") or ""
-        link = await fetch_subscription_link(email, sub_id)
+        link, logs = await fetch_subscription_link(email, sub_id, debug=True)
         if link:
             text += f"🔗 <b>Ссылка на подписку:</b>\n<code>{link}</code>"
         else:
-            text += f"UUID: <code>{client_uuid}</code>"
+            err = "\n".join(logs[-5:]) if logs else "no logs"
+            text += f"❌ <b>Не удалось получить ссылку</b>\n<code>{err}</code>"
 
         ib_h = cache(f"ib_{ib_id}", {"id": ib_id})
         await call.message.edit_text(
