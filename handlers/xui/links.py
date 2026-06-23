@@ -2,6 +2,7 @@
 
 from urllib.parse import urlparse, quote
 
+from handlers.xui.api.client import xui_get
 from handlers.xui.config_runtime import get_xui_url
 from handlers.xui.api.helpers import parse_stream_settings
 
@@ -23,10 +24,39 @@ def build_subscription_link(sub_id: str) -> str | None:
     sub_id = str(sub_id or "").strip()
     if not sub_id:
         return None
-    base = get_subscription_base_url()
-    if not base:
+    return None
+
+
+async def fetch_subscription_link(sub_id: str) -> str | None:
+    sub_id = str(sub_id or "").strip()
+    if not sub_id:
         return None
-    return f"{base}/sub/{quote(sub_id, safe='')}"
+
+    result = await xui_get(f"/panel/api/clients/subLinks/{quote(sub_id, safe='')}")
+    if not result.get("success"):
+        return None
+
+    obj = result.get("obj")
+    if isinstance(obj, str) and obj.strip():
+        return obj.strip()
+    if isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
+            if isinstance(item, dict):
+                for key in ("url", "link", "sub", "subscription", "value"):
+                    val = item.get(key)
+                    if isinstance(val, str) and val.strip():
+                        return val.strip()
+    if isinstance(obj, dict):
+        for key in ("url", "link", "sub", "subscription", "value"):
+            val = obj.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        for val in obj.values():
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    return None
 
 
 def build_vless_link(inbound: dict, client_uuid: str, email: str, client_flow: str = "") -> str | None:

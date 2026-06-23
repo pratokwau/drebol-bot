@@ -7,7 +7,7 @@ import secrets
 VPN_USERS_FILE = "data/vpn_users.json"
 CLIENT_NOTES_FILE = "data/client_notes.json"
 NOTE_MAX_LEN = 50
-DEFAULT_MAX_DEVICES = 10
+DEFAULT_MAX_DEVICES = 1
 
 
 def load_vpn_users() -> dict:

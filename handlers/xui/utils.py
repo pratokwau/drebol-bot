@@ -7,7 +7,7 @@ from config import ADMIN_ID
 _callback_cache = {}
 
 NOTE_MAX_LEN = 50
-DEFAULT_MAX_DEVICES = 10
+DEFAULT_MAX_DEVICES = 1
 CLIENTS_PAGE_SIZE = 10
 
 

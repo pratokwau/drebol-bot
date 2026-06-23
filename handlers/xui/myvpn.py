@@ -13,7 +13,7 @@ from handlers.xui.storage import (
     get_vpn_user, add_device_to_user, remove_device_from_user, set_user_username,
     DEFAULT_MAX_DEVICES,
 )
-from handlers.xui.links import build_instruction_text, build_subscription_link
+from handlers.xui.links import build_instruction_text, fetch_subscription_link
 from handlers.xui.states import MyVpnAddDevice
 from handlers.xui.utils import cache, _cache, format_bytes
 from handlers.xui.views import show_myvpn, show_myvpn_device
@@ -88,7 +88,7 @@ async def cb_myvpn(call: types.CallbackQuery, state: FSMContext):
     sub_id = client.get("subId", "") or ""
 
     if action == "link":
-        link = build_subscription_link(sub_id)
+        link = await fetch_subscription_link(sub_id)
         if not link:
             return await call.answer("Ссылка подписки не найдена", show_alert=True)
         await call.answer()
@@ -98,7 +98,7 @@ async def cb_myvpn(call: types.CallbackQuery, state: FSMContext):
         )
 
     elif action == "inst":
-        link = build_subscription_link(sub_id)
+        link = await fetch_subscription_link(sub_id)
         if not link:
             return await call.answer("Ссылка подписки не найдена", show_alert=True)
         text = build_instruction_text(link, device_name=email)
