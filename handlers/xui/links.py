@@ -20,27 +20,53 @@ async def fetch_subscription_link(sub_id: str) -> str | None:
     if not result or not result.get("success"):
         return None
 
+    def _score_url(url: str) -> tuple[int, str]:
+        u = url.strip()
+        if not u:
+            return (0, "")
+        low = u.lower()
+        if low.startswith("http://") or low.startswith("https://"):
+            if "/sub/" in low or low.endswith(sub_id.lower()):
+                return (4, u)
+            return (3, u)
+        if low.startswith("subscription://"):
+            return (2, u)
+        if low.startswith("vless://"):
+            return (1, u)
+        return (0, u)
+
+    candidates: list[str] = []
+
     obj = result.get("obj")
     if isinstance(obj, str) and obj.strip():
-        return obj.strip()
-    if isinstance(obj, list):
+        candidates.append(obj.strip())
+    elif isinstance(obj, list):
         for item in obj:
             if isinstance(item, str) and item.strip():
-                return item.strip()
-            if isinstance(item, dict):
-                for key in ("url", "link", "sub", "subscription", "value"):
+                candidates.append(item.strip())
+            elif isinstance(item, dict):
+                for key in ("subscriptionUrl", "subUrl", "subLink", "url", "link", "sub", "subscription", "value"):
                     val = item.get(key)
                     if isinstance(val, str) and val.strip():
-                        return val.strip()
-    if isinstance(obj, dict):
-        for key in ("url", "link", "sub", "subscription", "value"):
+                        candidates.append(val.strip())
+        # Не останавливаемся на первом значении: выбираем лучший вариант.
+    elif isinstance(obj, dict):
+        for key in ("subscriptionUrl", "subUrl", "subLink", "url", "link", "sub", "subscription", "value"):
             val = obj.get(key)
             if isinstance(val, str) and val.strip():
-                return val.strip()
+                candidates.append(val.strip())
         for val in obj.values():
             if isinstance(val, str) and val.strip():
-                return val.strip()
-    return None
+                candidates.append(val.strip())
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=_score_url, reverse=True)
+    best = candidates[0].strip()
+    if best.lower().startswith("vless://"):
+        return None
+    return best
 
 
 def build_vless_link(inbound: dict, client_uuid: str, email: str, client_flow: str = "") -> str | None:
