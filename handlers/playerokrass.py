@@ -18,7 +18,7 @@ router = Router()
 PLAYEROK_FILE = "data/playerok_commissions.json"
 os.makedirs(os.path.dirname(PLAYEROK_FILE), exist_ok=True)
 
-EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
+EXIT_HINT = "\n<i>Для выхода введите /cancel</i>"
 DIVIDER = "──────────────────"
 
 
@@ -230,7 +230,8 @@ async def calc_prices(message: types.Message, state: FSMContext):
         f"➖ Комиссия продажи ({sale_c:.2f}%): <b>{sell_price * sale_c / 100:,.2f} ₽</b>\n"
         f"➖ Комиссия вывода ({withdraw_c:.2f}%):  <b>{after_sale * withdraw_c / 100:,.2f} ₽</b>\n"
         f"{DIVIDER}\n"
-        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>\n\n"
+        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>\n"
         f"{EXIT_HINT}",
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_only_kb()
     )

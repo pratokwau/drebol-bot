@@ -18,7 +18,7 @@ router = Router()
 
 COMMISSIONS_FILE = "data/commissions.json"
 
-EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
+EXIT_HINT = "\n<i>Для выхода введите /cancel</i>"
 DIVIDER = "──────────────────"
 
 
@@ -155,7 +155,8 @@ async def calc_profit(message: types.Message, state: FSMContext):
         f"💰 Продажа:     <b>{sell_price:,.2f} ₽</b>\n"
         f"🏦 Комиссия:    <b>{commission:.2f}%</b>\n"
         f"{DIVIDER}\n"
-        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>\n\n"
+        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>\n"
         f"{EXIT_HINT}",
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_only_kb()
     )
