@@ -1,9 +1,12 @@
+import os
 import sqlite3
+from typing import Dict
 
 class Database:
     def __init__(self, db_file):
         self.conn = sqlite3.connect(db_file, check_same_thread=False)
         self.cursor = self.conn.cursor()
+        self.profit_conns: Dict[int, sqlite3.Connection] = {}
         self.create_tables()
 
     def create_tables(self):
@@ -42,13 +45,67 @@ class Database:
         self.cursor.execute("INSERT OR REPLACE INTO orders_data (order_id, prime_cost) VALUES (?, ?)", (order_id, cost))
         self.conn.commit()
 
+    def _profit_db_path(self, user_id):
+        base_dir = os.path.join("saveprofit", str(user_id))
+        os.makedirs(base_dir, exist_ok=True)
+        return os.path.join(base_dir, "profit.db")
+
+    def _get_profit_conn(self, user_id):
+        user_id = int(user_id)
+        conn = self.profit_conns.get(user_id)
+        if conn is not None:
+            return conn
+
+        conn = sqlite3.connect(self._profit_db_path(user_id), check_same_thread=False)
+        cur = conn.cursor()
+        cur.execute('''CREATE TABLE IF NOT EXISTS profits 
+                       (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        type TEXT,
+                        buy_price REAL,
+                        sell_price REAL,
+                        profit REAL,
+                        date TEXT)''')
+        conn.commit()
+        self.profit_conns[user_id] = conn
+        return conn
+
     def load_profits(self, user_id):
-        self.cursor.execute(
+        user_id = int(user_id)
+        conn = self._get_profit_conn(user_id)
+        cursor = conn.cursor()
+        cursor.execute(
             "SELECT type, buy_price, sell_price, profit, date FROM profits WHERE user_id = ? ORDER BY id ASC",
             (user_id,)
         )
-        rows = self.cursor.fetchall()
-        return [
+        rows = cursor.fetchall()
+        if rows:
+            return [
+                {
+                    "type": row[0],
+                    "buy_price": row[1] or 0,
+                    "sell_price": row[2] or 0,
+                    "profit": row[3] or 0,
+                    "date": row[4] or "",
+                }
+                for row in rows
+            ]
+
+        # Миграция старых данных из общей базы в личную базу пользователя
+        legacy_rows = []
+        try:
+            self.cursor.execute(
+                "SELECT type, buy_price, sell_price, profit, date FROM profits WHERE user_id = ? ORDER BY id ASC",
+                (user_id,)
+            )
+            legacy_rows = self.cursor.fetchall()
+        except Exception:
+            legacy_rows = []
+
+        if not legacy_rows:
+            return []
+
+        migrated = [
             {
                 "type": row[0],
                 "buy_price": row[1] or 0,
@@ -56,12 +113,17 @@ class Database:
                 "profit": row[3] or 0,
                 "date": row[4] or "",
             }
-            for row in rows
+            for row in legacy_rows
         ]
+        self.save_profits(user_id, migrated)
+        return migrated
 
     def save_profits(self, user_id, profits):
-        self.cursor.execute("DELETE FROM profits WHERE user_id = ?", (user_id,))
-        self.cursor.executemany(
+        user_id = int(user_id)
+        conn = self._get_profit_conn(user_id)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM profits WHERE user_id = ?", (user_id,))
+        cursor.executemany(
             "INSERT INTO profits (user_id, type, buy_price, sell_price, profit, date) VALUES (?, ?, ?, ?, ?, ?)",
             [
                 (
@@ -75,6 +137,6 @@ class Database:
                 for p in profits
             ]
         )
-        self.conn.commit()
+        conn.commit()
 
 db = Database("funpay_admin.db")
