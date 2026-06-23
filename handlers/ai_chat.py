@@ -222,15 +222,10 @@ async def _start_new_chat(source, state: FSMContext, user_id: int, is_call: bool
         await source.answer(text, parse_mode=ParseMode.HTML)
 
 
-@router.callback_query(F.data.startswith("ai_"))
+@router.callback_query(F.data.startswith("ai_") & ~F.data.startswith("ai_set_"))
 async def cb_ai(call: types.CallbackQuery, state: FSMContext):
     if not is_authorized_context(call.from_user.id, call.message.chat.id):
         await no_access_callback(call)
-        return
-
-    # Настройки AI обрабатываются отдельным router'ом
-    if call.data.startswith("ai_set_"):
-        await call.answer()
         return
 
     # В группе — кнопки доступны только тому кто их вызвал
