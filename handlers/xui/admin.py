@@ -47,7 +47,9 @@ async def cmd_xui(message: types.Message):
     if not xui_cfg.get("XUI_URL") or not xui_cfg.get("XUI_TOKEN"):
         await message.answer(
             "⚠️ <b>XUI не настроен</b>\n\n"
-            "Откройте настройки и введите URL панели и токен.",
+            "Откройте настройки и введите URL панели и токен.\n\n"
+            "Для установки панели воспользуйтесь командой:\n"
+            "<code>bash &lt;(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=xui_settings_kb(False),
         )
@@ -89,7 +91,9 @@ async def cb_xui(call: types.CallbackQuery, state: FSMContext):
         if not xui_cfg.get("XUI_URL") or not xui_cfg.get("XUI_TOKEN"):
             await call.message.edit_text(
                 "⚠️ <b>XUI не настроен</b>\n\n"
-                "Откройте настройки и введите URL панели и токен.",
+                "Откройте настройки и введите URL панели и токен.\n\n"
+                "Для установки панели воспользуйтесь командой:\n"
+                "<code>bash &lt;(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)</code>",
                 parse_mode=ParseMode.HTML,
                 reply_markup=xui_settings_kb(False),
             )
