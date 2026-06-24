@@ -2,7 +2,6 @@
 
 import re
 import os
-import sys
 import json
 import html as _html
 import time
@@ -12,10 +11,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.enums import ParseMode
-
-CARDINAL_PATH = "/root/FunPayCardinal"
-if os.path.isdir(os.path.join(CARDINAL_PATH, "FunPayAPI")) and CARDINAL_PATH not in sys.path:
-    sys.path.insert(0, CARDINAL_PATH)
 
 from FunPayAPI import Account
 try:
