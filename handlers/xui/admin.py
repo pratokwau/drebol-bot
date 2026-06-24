@@ -30,6 +30,7 @@ from handlers.xui.states import (
 )
 from handlers.xui.utils import is_admin, cache, _cache, format_bytes
 from handlers.xui.views import _show_user_menu, _refresh_client_view
+from handlers.xui.views import sync_user_devices_with_panel
 from handlers.xui.keyboards import xui_settings_kb
 from handlers.xui.states import XuiSettings
 from handlers.xui.settings_store import load_xui_settings, save_xui_settings
@@ -279,6 +280,30 @@ async def cb_xui(call: types.CallbackQuery, state: FSMContext):
         cl_h = data[len("xui_cl_"):]
         await call.answer("⏳")
         await _refresh_client_view(call, cl_h)
+
+    elif data.startswith("xui_tog_"):
+        cl_h = data[len("xui_tog_"):]
+        info = _cache.get(cl_h, {})
+        email = info.get("email")
+        uuid_val = info.get("uuid")
+        ib_id = info.get("ib_id")
+        if not email or not ib_id:
+            return await call.answer("Ошибка данных", show_alert=True)
+
+        client = await api_get_client(email)
+        if not client:
+            return await call.answer("Устройство не найдено", show_alert=True)
+
+        client["enable"] = not client.get("enable", True)
+        result = await xui_post(
+            f"/panel/api/clients/update/{email_path(email)}",
+            data=build_update_payload(client)
+        )
+        if result.get("success"):
+            await call.answer("✅ Готово")
+            await _refresh_client_view(call, cl_h)
+        else:
+            await call.answer(f"❌ Ошибка: {result.get('msg', '?')}", show_alert=True)
 
     elif data == "xui_settings":
         xui_cfg = load_xui_settings()

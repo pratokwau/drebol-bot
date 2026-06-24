@@ -16,7 +16,7 @@ from handlers.xui.storage import (
 from handlers.xui.links import build_instruction_text, fetch_subscription_link
 from handlers.xui.states import MyVpnAddDevice
 from handlers.xui.utils import cache, _cache, format_bytes
-from handlers.xui.views import show_myvpn, show_myvpn_device
+from handlers.xui.views import show_myvpn, show_myvpn_device, sync_user_devices_with_panel
 
 router = Router()
 EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
@@ -29,6 +29,11 @@ async def cmd_myvpn(message: types.Message):
 @router.callback_query(F.data.startswith("myvpn_"))
 async def cb_myvpn(call: types.CallbackQuery, state: FSMContext):
     user_id = call.from_user.id
+    binding = get_vpn_user(user_id)
+    if not binding:
+        return await call.answer("У вас нет привязанного VPN", show_alert=True)
+
+    await sync_user_devices_with_panel(str(user_id))
     binding = get_vpn_user(user_id)
     if not binding:
         return await call.answer("У вас нет привязанного VPN", show_alert=True)

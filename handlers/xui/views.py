@@ -17,6 +17,46 @@ from handlers.xui.storage import (
 from handlers.xui.keyboards import user_menu_kb, client_actions_kb
 from handlers.xui.utils import cache, _cache, format_bytes
 
+
+async def sync_user_devices_with_panel(user_key: str) -> bool:
+    """Удаляет из базы устройства, которых уже нет в панели.
+    Возвращает True, если были изменения."""
+    data = load_vpn_users()
+    info = data.get(user_key)
+    if not info:
+        return False
+
+    devices = info.get("devices", [])
+    if not devices:
+        return False
+
+    try:
+        _panel_emails = set()
+        _page = 1
+        while True:
+            _r = await xui_get(f"/panel/api/clients/list/paged?page={_page}&pageSize=200")
+            if not _r.get("success"):
+                break
+            _obj = _r.get("obj", {})
+            for _c in _obj.get("items", []):
+                _panel_emails.add(_c.get("email"))
+            if _page * 200 >= _obj.get("total", 0):
+                break
+            _page += 1
+    except Exception:
+        return False
+
+    if not _panel_emails:
+        return False
+
+    _clean = [_d for _d in devices if _d.get("email") in _panel_emails]
+    if len(_clean) == len(devices):
+        return False
+
+    data[user_key]["devices"] = _clean
+    save_vpn_users(data)
+    return True
+
 async def _show_user_menu(call_or_msg, user_key: str, ib_id_default: int = 0, edit: bool = True):
     """Показывает меню юзера админу. user_key — TG ID или anon_xxx"""
     data = load_vpn_users()
@@ -47,25 +87,11 @@ async def _show_user_menu(call_or_msg, user_key: str, ib_id_default: int = 0, ed
 
         # Шаг 2: убираем устройства которых нет в панели (через paged API)
         try:
-            _panel_emails = set()
-            _page = 1
-            while True:
-                _r = await xui_get(f"/panel/api/clients/list/paged?page={_page}&pageSize=200")
-                if not _r.get("success"):
-                    break
-                _obj = _r.get("obj", {})
-                for _c in _obj.get("items", []):
-                    _panel_emails.add(_c.get("email"))
-                if _page * 200 >= _obj.get("total", 0):
-                    break
-                _page += 1
-            if _panel_emails:
-                _clean = [_d for _d in devices if _d.get("email") in _panel_emails]
-                if len(_clean) != len(devices):
-                    data[user_key]["devices"] = _clean
-                    save_vpn_users(data)
-                    info = data[user_key]
-                    devices = _clean
+            changed = await sync_user_devices_with_panel(user_key)
+            if changed:
+                data = load_vpn_users()
+                info = data[user_key]
+                devices = info.get("devices", [])
         except Exception:
             pass
 
@@ -147,6 +173,10 @@ async def _refresh_client_view(call: types.CallbackQuery, cl_h: str):
     inbound = next((ib for ib in inbounds if ib.get("id") == ib_id), None)
     if not inbound:
         return
+
+    owner_user_key = info.get("owner_uk", "")
+    if owner_user_key:
+        await sync_user_devices_with_panel(str(owner_user_key))
 
     # v3: получаем клиента через API, не через parse_clients
     client = await api_get_client(email)
