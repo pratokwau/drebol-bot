@@ -1,0 +1,13 @@
+aiogram==3.13.1
+python-dotenv==1.0.1
+groq
+aiohttp
+edge-tts
+apscheduler
+openai
+requests
+requests-toolbelt
+beautifulsoup4
+lxml
+matplotlib
+Pillow
