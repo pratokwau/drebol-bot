@@ -60,6 +60,16 @@ def xui_inbound_subport_input_kb(ib_h: str) -> InlineKeyboardMarkup:
     ]])
 
 
+def xui_inbound_settings_kb(ib_h: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔗 Порт подписки", callback_data=f"xui_ibset_port_{ib_h}")],
+        [
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"xui_ibset_back_{ib_h}"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data=f"xui_ibset_cancel_{ib_h}"),
+        ],
+    ])
+
+
 def _inbound_text(inbound: dict) -> str:
     clients = parse_clients(inbound)
     total_up = sum(s.get("up", 0) for s in inbound.get("clientStats", []))
@@ -119,7 +129,7 @@ def _inbound_settings_text(inbound: dict) -> str:
         f"📡 <b>{remark}</b>\n"
         f"🌐 Порт: <b>{port}</b>\n"
         f"🔗 Порт подписки: <b>{sub_port_text}</b>\n\n"
-        f"Отправьте новый порт подписки или <code>-</code> чтобы использовать автоопределение.\n"
+        f"Нажмите <b>Порт подписки</b>, чтобы ввести новый порт.\n"
         f"Для выхода введите /cancel"
     )
 
@@ -220,8 +230,14 @@ async def cb_xui(call: types.CallbackQuery, state: FSMContext):
         ib_h = data[len("xui_ib_"):]
         await _show_inbound(call, ib_h, 0)
 
-    elif data.startswith("xui_ibset_"):
-        ib_h = data[len("xui_ibset_"):]
+    elif data.startswith("xui_ibset_back_") or data.startswith("xui_ibset_cancel_"):
+        ib_h = data[len("xui_ibset_back_"):] if data.startswith("xui_ibset_back_") else data[len("xui_ibset_cancel_"):]
+        await state.clear()
+        await _show_inbound(call, ib_h, 0)
+        await call.answer("Действие отменено")
+
+    elif data.startswith("xui_ibset_port_"):
+        ib_h = data[len("xui_ibset_port_"):]
         info = _cache.get(ib_h, {})
         ib_id = info.get("id")
         if not ib_id:
@@ -239,11 +255,24 @@ async def cb_xui(call: types.CallbackQuery, state: FSMContext):
         )
         await call.answer()
 
-    elif data.startswith("xui_ibset_back_") or data.startswith("xui_ibset_cancel_"):
-        ib_h = data[len("xui_ibset_back_"):] if data.startswith("xui_ibset_back_") else data[len("xui_ibset_cancel_"):]
-        await state.clear()
-        await _show_inbound(call, ib_h, 0)
-        await call.answer("Действие отменено")
+    elif data.startswith("xui_ibset_"):
+        ib_h = data[len("xui_ibset_"):]
+        info = _cache.get(ib_h, {})
+        ib_id = info.get("id")
+        if not ib_id:
+            return await call.answer("Инбаунд не найден", show_alert=True)
+        inbounds, _ = await api_get_inbounds()
+        inbound = next((ib for ib in inbounds if ib.get("id") == ib_id), None)
+        if not inbound:
+            return await call.answer("Инбаунд не найден", show_alert=True)
+        await state.update_data(xui_inbound_id=ib_id, xui_inbound_hash=ib_h)
+        await state.set_state(XuiSettings.waiting_inbound_subport)
+        await call.message.edit_text(
+            _inbound_settings_text(inbound),
+            parse_mode=ParseMode.HTML,
+            reply_markup=xui_inbound_settings_kb(ib_h),
+        )
+        await call.answer()
 
     elif data.startswith("xui_cl_"):
         # Открыть конкретный клиент в инбаунде
@@ -963,13 +992,11 @@ async def xui_settings_input_inbound_subport(message: types.Message, state: FSMC
 
     data = await state.get_data()
     ib_id = data.get("xui_inbound_id")
-    ib_h = data.get("xui_inbound_hash")
     text = message.text.strip()
 
     if text in {"/cancel", "❌ Отмена", "⬅️ Назад", "назад", "back"}:
         await state.clear()
-        if ib_h:
-            await message.answer("✅ Настройка отменена.")
+        await message.answer("✅ Настройка отменена.")
         return
 
     sub_port = "" if text == "-" else text
@@ -984,16 +1011,16 @@ async def xui_settings_input_inbound_subport(message: types.Message, state: FSMC
         set_inbound_sub_port(ib_id, sub_port)
 
     await state.clear()
-    if ib_h:
-        inbounds, _ = await api_get_inbounds()
-        inbound = next((ib for ib in inbounds if str(ib.get("id")) == str(ib_id)), None)
-        if inbound:
-            await message.answer(
-                _inbound_text(inbound),
-                parse_mode=ParseMode.HTML,
-                reply_markup=clients_kb(inbound, page=0),
-            )
-            return
+    inbounds, _ = await api_get_inbounds()
+    inbound = next((ib for ib in inbounds if str(ib.get("id")) == str(ib_id)), None)
+    if inbound:
+        ib_h = cache(f"ib_{ib_id}", {"id": ib_id})
+        await message.answer(
+            _inbound_text(inbound),
+            parse_mode=ParseMode.HTML,
+            reply_markup=clients_kb(inbound, page=0),
+        )
+        return
 
     await message.answer("✅ <b>Порт подписки для инбаунда сохранён</b>", parse_mode=ParseMode.HTML)
 
