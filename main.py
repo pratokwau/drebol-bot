@@ -1,172 +1,258 @@
-from __future__ import annotations
-
 import asyncio
-import time
+import sys
+import json
+import os
+from datetime import datetime, timedelta
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+sys.stdout.reconfigure(encoding='utf-8')
+
+from aiogram import types, F
 from aiogram.types import BotCommand
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from loader import bot, dp
 from config import ADMIN_ID
-from handlers.admin import router as admin_router
+
+MUTE_FILE = "data/mute_restart.json"
+
+
+def _load_mutes() -> dict:
+    if not os.path.exists(MUTE_FILE):
+        return {}
+    try:
+        with open(MUTE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_mutes(mutes: dict):
+    os.makedirs("data", exist_ok=True)
+    with open(MUTE_FILE, "w", encoding="utf-8") as f:
+        json.dump(mutes, f)
+
+
+def _is_muted(uid: int) -> bool:
+    exp = _load_mutes().get(str(uid))
+    if not exp:
+        return False
+    return datetime.fromisoformat(exp) > datetime.now()
+
+
+def _set_mute(uid: int, minutes: int):
+    mutes = _load_mutes()
+    mutes[str(uid)] = (datetime.now() + timedelta(minutes=minutes)).isoformat()
+    _save_mutes(mutes)
+
+
+def _restart_mute_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🔕 30 мин", callback_data="restart_mute_30"),
+        InlineKeyboardButton(text="🔕 1 час",  callback_data="restart_mute_60"),
+        InlineKeyboardButton(text="🔕 1 день", callback_data="restart_mute_1440"),
+    ]])
+
+
 from handlers.cancel import router as cancel_router
 from handlers.start import router as start_router
-from handlers.tickets import router as tickets_router
-from loader import bot, dp
-from storage import clear_update_state, load_update_state
-from sub.adminpaysub.paid_settings_store import DEFAULT_PAID_PAYMENT_URL
-from sub.adminpaysub.paid_storage import (
-    load_paid_subscriptions,
-    paid_subscription_status,
-    refresh_paid_subscription_state,
-    save_paid_subscriptions,
-)
-from sub.adminpaysub.paid_subscriptions import _sync_paid_user_devices_expiry
-from sub import router as xui_router
-from sub.adminpaysub.paid_settings_store import format_duration
+from handlers.admin import router as admin_router
+from handlers.rassstart import router as rass_router
+from handlers.playerokrass import router as playerok_router
+from handlers.saveprofit import router as saveprofit_router
+from handlers.wallet import send_daily_report, router as wallet_router
+from handlers.funpay_admin import router as fp_admin_router
+from handlers.tasks import remind_unfilled_orders, router as tasks_router
+from handlers.minprice import router as minprice_router, check_sbp_rates_for_admin
+from handlers.ai_chat import router as ai_router
+from handlers.ai_settings import router as ai_settings_router
+from update_manager import get_update_status, load_restart_notice, clear_restart_notice
+from handlers.settings import router as settings_router
+from handlers.migration import router as migration_router
+from handlers.demping import router as demping_router
+from handlers.certificates import router as certificates_router
+from handlers.status import router as status_router, log_event, log_downtime, write_heartbeat, check_heartbeat_and_log
+from middlewares.command_restriction import CommandRestrictionMiddleware
 
 
-def _payment_notification_started_key(event: str) -> str:
-    return {
-        "trial_expired": "trial_expired_notification_started_at",
-        "payment_expired": "payment_expired_notification_started_at",
-        "grace_expired": "grace_expired_notification_started_at",
-    }[event]
+async def send_saveprofit_notifications():
+    """Каждую минуту проверяет, кому из пользователей пора слать ежедневный отчёт."""
+    from handlers.settings import load_all, DEFAULTS
+    from loader import authorized_users
+
+    now = datetime.now().strftime("%H:%M")
+    all_settings = load_all()
+
+    for uid in authorized_users:
+        if int(uid) == int(ADMIN_ID):
+            continue
+        s = {**DEFAULTS, **all_settings.get(str(uid), {})}
+        if s.get("saveprofit_notify") and s.get("saveprofit_time") == now:
+            try:
+                await send_daily_report(bot, uid)
+            except Exception as e:
+                print(f"[SAVEPROFIT NOTIFY] Ошибка для {uid}: {e}")
 
 
-def _payment_notification_sent_key(event: str) -> str:
-    return {
-        "trial_expired": "trial_expired_notified_at",
-        "payment_expired": "payment_expired_notified_at",
-        "grace_expired": "grace_expired_notified_at",
-    }[event]
+_last_admin_report_date = None
 
 
-async def setup_commands() -> None:
-    await bot.set_my_commands(
-        [
+async def send_admin_daily_report():
+    """Админский отчёт: сначала обновляет СБП, потом отправляет статистику."""
+    try:
+        await check_sbp_rates_for_admin()
+    except Exception as e:
+        print(f"[ADMIN DAILY REPORT] Ошибка проверки СБП: {e}")
+    await send_daily_report(bot, ADMIN_ID)
+
+
+async def check_admin_daily_report_time():
+    """Каждую минуту проверяет, пора ли отправить главный админский отчёт."""
+    global _last_admin_report_date
+    from handlers.settings import get_user_settings
+
+    now = datetime.now()
+    settings = get_user_settings(ADMIN_ID)
+    if not settings.get("admin_report_notify", True):
+        return
+    if settings.get("admin_report_time", "23:59") != now.strftime("%H:%M"):
+        return
+
+    today_key = now.strftime("%Y-%m-%d")
+    if _last_admin_report_date == today_key:
+        return
+
+    _last_admin_report_date = today_key
+    await send_admin_daily_report()
+
+
+async def bot_heartbeat():
+    """Каждую минуту: проверяет паузу в работе бота, потом обновляет heartbeat."""
+    check_heartbeat_and_log()
+    write_heartbeat()
+
+
+async def _check_downtime_on_startup():
+    """Вызывается сразу при старте — фиксирует даунтайм бота пока сервер лежал."""
+    check_heartbeat_and_log()
+    write_heartbeat()
+
+
+async def main():
+    dp.message.middleware(CommandRestrictionMiddleware())
+
+    dp.include_router(cancel_router)
+    dp.include_router(settings_router)
+    dp.include_router(demping_router)
+    dp.include_router(certificates_router)
+    dp.include_router(start_router)
+    dp.include_router(admin_router)
+    dp.include_router(rass_router)
+    dp.include_router(playerok_router)
+    dp.include_router(saveprofit_router)
+    dp.include_router(wallet_router)
+    dp.include_router(fp_admin_router)
+    dp.include_router(tasks_router)
+    dp.include_router(minprice_router)
+    dp.include_router(ai_router)
+    dp.include_router(ai_settings_router)
+    dp.include_router(status_router)
+    dp.include_router(migration_router)
+
+    job_defaults = {
+        'coalesce': True,
+        'max_instances': 1
+    }
+    scheduler = AsyncIOScheduler(timezone="Europe/Moscow", job_defaults=job_defaults)
+
+    scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=40)
+    scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=55)
+    scheduler.add_job(check_admin_daily_report_time, "cron",     minute="*")
+    scheduler.add_job(send_saveprofit_notifications, "cron",     minute="*")
+    scheduler.add_job(bot_heartbeat,                 "interval", minutes=1)
+    scheduler.start()
+
+    print("[INFO] Запуск бота...")
+
+    async def setup_bot_commands():
+        await bot.set_my_commands([
             BotCommand(command="start", description="Главное меню"),
-        ]
-    )
+            BotCommand(command="cancel", description="Выход из действия"),
+            BotCommand(command="migrate", description="Миграция на новый сервер"),
+        ])
 
-
-async def _notify_about_paid_subscriptions() -> None:
-    while True:
+    @dp.callback_query(F.data.startswith("restart_mute_"))
+    async def cb_restart_mute(call: types.CallbackQuery):
+        minutes = int(call.data.split("_")[2])
+        _set_mute(call.from_user.id, minutes)
+        labels = {30: "30 минут", 60: "1 час", 1440: "1 день"}
+        await call.answer(f"🔕 Уведомления отключены на {labels.get(minutes, f'{minutes} мин')}", show_alert=False)
         try:
-            subscriptions = load_paid_subscriptions()
-            changed = False
-            for user_key, info in list(subscriptions.items()):
-                if not isinstance(info, dict) or not str(user_key).isdigit():
-                    continue
-                refreshed, events = refresh_paid_subscription_state(info)
-                if refreshed is not info:
-                    subscriptions[user_key] = refreshed
-                    changed = True
-                if not events:
-                    continue
-                user_id = int(user_key)
-                for event in events:
-                    started_key = _payment_notification_started_key(event)
-                    sent_key = _payment_notification_sent_key(event)
-                    refreshed[started_key] = int(time.time())
-                    subscriptions[user_key] = refreshed
-                    save_paid_subscriptions(subscriptions)
-                    if event == "trial_expired":
-                        grace_ends_at = int(refreshed.get("grace_ends_at") or 0)
-                        grace_text = format_duration(refreshed.get("grace_seconds"))
-                        if grace_ends_at:
-                            await _sync_paid_user_devices_expiry(
-                                user_id,
-                                grace_ends_at * 1000,
-                                enabled=True,
-                                limit_ip=int(refreshed.get("limit_ip") or 0),
-                                limit_gb=float(refreshed.get("limit_gb") or 0),
-                                flow=str(refreshed.get("flow") or ""),
-                            )
-                        await bot.send_message(
-                            user_id,
-                            "🧪 <b>Пробный период истёк.</b>\n\n"
-                            f"Доступ сохранён ещё на {grace_text}.\n"
-                            "Если за это время не оплатить, доступ будет удалён.\n"
-                            "Открой /sub и нажми «Продлить подписку».",
-                            parse_mode="HTML",
-                        )
-                        refreshed[sent_key] = int(time.time())
-                    elif event == "payment_expired":
-                        grace_text = format_duration(refreshed.get("grace_seconds"))
-                        grace_ends_at = int(refreshed.get("grace_ends_at") or 0)
-                        if grace_ends_at:
-                            await _sync_paid_user_devices_expiry(
-                                user_id,
-                                grace_ends_at * 1000,
-                                enabled=False,
-                                limit_ip=int(refreshed.get("limit_ip") or 0),
-                                limit_gb=float(refreshed.get("limit_gb") or 0),
-                                flow=str(refreshed.get("flow") or ""),
-                            )
-                        await bot.send_message(
-                            user_id,
-                            "⏳ <b>Срок подписки истёк.</b>\n\n"
-                            f"У тебя есть {grace_text}, чтобы продлить оплату.\n"
-                            + "Открой /sub и нажми «Продлить подписку».",
-                            parse_mode="HTML",
-                        )
-                        refreshed[sent_key] = int(time.time())
-                    elif event == "grace_expired":
-                        grace_ends_at = int(refreshed.get("grace_ends_at") or 0)
-                        if grace_ends_at:
-                            await _sync_paid_user_devices_expiry(
-                                user_id,
-                                grace_ends_at * 1000,
-                                limit_ip=int(refreshed.get("limit_ip") or 0),
-                                limit_gb=float(refreshed.get("limit_gb") or 0),
-                                flow=str(refreshed.get("flow") or ""),
-                            )
-                        await bot.send_message(
-                            user_id,
-                            "⛔ <b>Период продления закончился.</b>\n\n"
-                            "Подписка сохранена в системе.\n"
-                            "Чтобы вернуть доступ, нажми /sub и продли подписку.",
-                            parse_mode="HTML",
-                        )
-                        refreshed[sent_key] = int(time.time())
-                    refreshed.pop(started_key, None)
-                    subscriptions[user_key] = refreshed
-                    save_paid_subscriptions(subscriptions)
-                changed = True
-            if changed:
-                save_paid_subscriptions(subscriptions)
+            await call.message.edit_reply_markup(reply_markup=None)
         except Exception:
             pass
-        await asyncio.sleep(10)
 
+    async def notify_restart():
+        from loader import authorized_users
+        from handlers.settings import is_enabled
 
-async def main() -> None:
-    dp.include_router(cancel_router)
-    dp.include_router(start_router)
-    dp.include_router(tickets_router)
-    dp.include_router(admin_router)
-    dp.include_router(xui_router)
-    await setup_commands()
+        # Сразу при старте фиксируем даунтайм бота
+        await _check_downtime_on_startup()
 
-    async def notify_update_success() -> None:
-        state = load_update_state()
-        if state.get("status") != "pending_success":
-            return
-        chat_id = int(state.get("chat_id") or ADMIN_ID or 0)
-        if not chat_id:
-            return
-        await asyncio.sleep(2)
+        for uid in authorized_users:
+            if not is_enabled(uid, "restart_notify"):
+                continue
+            if _is_muted(uid):
+                continue
+            try:
+                await bot.send_message(
+                    uid,
+                    "🔄 <b>Бот был перезагружен.</b>\n\n"
+                    "Если вы были в каком-либо режиме (AI, расчёт, минпрайс и т.д.) — "
+                    "введите команду заново.",
+                    parse_mode="HTML",
+                    reply_markup=_restart_mute_kb()
+                )
+            except Exception:
+                pass
+    await setup_bot_commands()
+
+    async def post_start_notifications():
         try:
-            await bot.send_message(
-                chat_id,
-                "✅ <b>Обновление применено успешно.</b>\n\n"
-                "Новая версия бота запущена и готова к работе.",
-            )
+            await notify_restart()
         finally:
-            clear_update_state()
+            notice = load_restart_notice()
+            if notice:
+                try:
+                    await bot.send_message(
+                        int(notice.get("chat_id") or ADMIN_ID),
+                        notice.get("text") or "✅ <b>Бот успешно перезапустился.</b>",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+                finally:
+                    clear_restart_notice()
 
-    asyncio.create_task(notify_update_success())
-    asyncio.create_task(_notify_about_paid_subscriptions())
-    await dp.start_polling(bot)
+    asyncio.create_task(post_start_notifications())
+
+    while True:
+        try:
+            me = await bot.get_me()
+            print(f"[INFO] Бот @{me.username} успешно запущен!")
+            await dp.start_polling(bot, polling_timeout=2)
+        except Exception as e:
+            print(f"[CRITICAL ERROR] Вылет поллинга: {e}")
+            print("[INFO] Попытка перезапуска через 5 секунд...")
+            await asyncio.sleep(5)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("[INFO] Бот остановлен вручную.")
+    finally:
+        loop.run_until_complete(bot.session.close())
+        loop.close()
