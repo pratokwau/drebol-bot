@@ -120,13 +120,13 @@ Telegram-бот для внутренней работы с продажами, 
 Проект содержит готовый установщик для Linux-сервера с `systemd`.
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/pratokwau/drebolbot/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/pratokwau/drebol-bot/main/install.sh)
 ```
 
 Или:
 
 ```bash
-wget https://raw.githubusercontent.com/pratokwau/drebolbot/main/install.sh -O install.sh && bash install.sh
+wget https://raw.githubusercontent.com/pratokwau/drebol-bot/main/install.sh -O install.sh && bash install.sh
 ```
 
 Что делает установщик:
