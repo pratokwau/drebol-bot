@@ -66,9 +66,7 @@ from handlers.minprice import router as minprice_router, check_sbp_rates_for_adm
 from handlers.ai_chat import router as ai_router
 from handlers.ai_settings import router as ai_settings_router
 from update_manager import get_update_status, load_restart_notice, clear_restart_notice
-from handlers.tickets import router as tickets_router
 from handlers.settings import router as settings_router
-from handlers.about import router as about_router
 from handlers.demping import router as demping_router
 from handlers.certificates import router as certificates_router
 from handlers.status import router as status_router, log_event, log_downtime, write_heartbeat, check_heartbeat_and_log
@@ -142,9 +140,7 @@ async def main():
     dp.message.middleware(CommandRestrictionMiddleware())
 
     dp.include_router(cancel_router)
-    dp.include_router(tickets_router)
     dp.include_router(settings_router)
-    dp.include_router(about_router)
     dp.include_router(demping_router)
     dp.include_router(certificates_router)
     dp.include_router(start_router)
