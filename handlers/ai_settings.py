@@ -11,7 +11,6 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import ADMIN_ID
 from base_store import admin_db_path, connect
-from handlers.utils import no_access_reply, no_access_callback
 
 router = Router()
 EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
@@ -98,7 +97,7 @@ def _key_prompt_text(key_name: str, current_value: str) -> str:
 @router.message(Command("aisettings"))
 async def cmd_ai_settings(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        return await no_access_reply(message)
+        return
     await state.clear()
     await message.answer(_ai_settings_text(), parse_mode=ParseMode.HTML, reply_markup=ai_settings_menu_kb())
 
@@ -106,7 +105,7 @@ async def cmd_ai_settings(message: types.Message, state: FSMContext):
 @router.callback_query(F.data == "admin_ai_settings")
 async def cb_ai_settings(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
+        return
     await state.clear()
     await call.message.edit_text(_ai_settings_text(), parse_mode=ParseMode.HTML, reply_markup=ai_settings_menu_kb())
     await call.answer()
@@ -115,7 +114,7 @@ async def cb_ai_settings(call: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "ai_set_groq")
 async def cb_ai_set_groq(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
+        return
     data = load_ai_settings()
     await state.set_state(AiSettings.waiting_groq)
     await call.message.edit_text(_key_prompt_text("GROQ_API_KEY", data.get("GROQ_API_KEY", "")), parse_mode=ParseMode.HTML, reply_markup=ai_settings_back_kb())
@@ -125,7 +124,7 @@ async def cb_ai_set_groq(call: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "ai_set_openrouter")
 async def cb_ai_set_openrouter(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
+        return
     data = load_ai_settings()
     await state.set_state(AiSettings.waiting_openrouter)
     await call.message.edit_text(_key_prompt_text("OPENROUTER_API_KEY", data.get("OPENROUTER_API_KEY", "")), parse_mode=ParseMode.HTML, reply_markup=ai_settings_back_kb())
@@ -135,7 +134,7 @@ async def cb_ai_set_openrouter(call: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "ai_settings_back")
 async def cb_ai_settings_back(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
+        return
     await state.clear()
     await call.message.edit_text(_ai_settings_text(), parse_mode=ParseMode.HTML, reply_markup=ai_settings_menu_kb())
     await call.answer()
@@ -144,7 +143,7 @@ async def cb_ai_settings_back(call: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "ai_settings_cancel")
 async def cb_ai_settings_cancel(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
+        return
     await state.clear()
     await call.message.edit_text(_ai_settings_text(), parse_mode=ParseMode.HTML, reply_markup=ai_settings_menu_kb())
     await call.answer("Действие отменено")
@@ -153,7 +152,7 @@ async def cb_ai_settings_cancel(call: types.CallbackQuery, state: FSMContext):
 @router.message(AiSettings.waiting_groq, F.text)
 async def ai_settings_groq(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        return await no_access_reply(message)
+        return
     text = message.text.strip()
     if text == "/cancel" or text in {"⬅️ Назад", "назад", "back"}:
         await state.clear()
@@ -168,7 +167,7 @@ async def ai_settings_groq(message: types.Message, state: FSMContext):
 @router.message(AiSettings.waiting_openrouter, F.text)
 async def ai_settings_openrouter(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        return await no_access_reply(message)
+        return
     text = message.text.strip()
     if text == "/cancel" or text in {"⬅️ Назад", "назад", "back"}:
         await state.clear()

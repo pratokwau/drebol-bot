@@ -28,9 +28,9 @@ except ImportError:
         _fp_account.BeautifulSoup = _beautiful_soup_compat
     except Exception:
         pass
-from database import db
-from config import ADMIN_ID
-from handlers.utils import load_profits, save_profits, format_date_now, load_inventory, no_access_reply, no_access_callback
+    from database import db
+    from config import ADMIN_ID
+    from handlers.utils import load_profits, save_profits, format_date_now, load_inventory
 
 router = Router()
 
@@ -273,7 +273,6 @@ def get_auto_buy_prices(product_full_name: str, order_game: str = None, order_am
             cleaned_order_game = clean_text(order_game)
             direct_games = {
                 g: items for g, items in mp_data.items()
-                if cleaned_order_game in clean_text(g) or clean_text(g) in cleaned_order_game
             }
             if direct_games:
                 games_to_search = direct_games
@@ -289,7 +288,6 @@ def get_auto_buy_prices(product_full_name: str, order_game: str = None, order_am
                     games_to_search = {
                         game_name: items
                         for score, game_name, items in scored_games
-                        if score == best_score
                     }
                 else:
                     games_to_search = mp_data
@@ -418,24 +416,18 @@ async def show_funpay_auto_menu(target):
 
 @router.message(Command("funpayauto", "funpayau"))
 async def cmd_funpayauto(message: types.Message):
-    if not is_funpay_admin(message.from_user.id):
-        return await no_access_reply(message)
 
     await show_funpay_auto_menu(message)
 
 
 @router.callback_query(F.data == "funpay_auto_main")
 async def cb_funpay_auto_main(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
     await state.clear()
     await show_funpay_auto_menu(call)
 
 
 @router.callback_query(F.data == "fp_settings")
 async def fp_settings(call: types.CallbackQuery):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     gk, ua = db.get_config()
     text = (f"🛠 <b>Настройки доступа</b>\n\n"
@@ -453,8 +445,6 @@ async def fp_settings(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("fp_sales_"))
 async def view_sales(call: types.CallbackQuery):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     page = int(call.data.split("_")[2])
     gk, ua = db.get_config()
@@ -526,8 +516,6 @@ async def view_sales(call: types.CallbackQuery):
 # --- ДЕТАЛИ ЗАКАЗА ---
 @router.callback_query(F.data.startswith("fpdet_"))
 async def order_info(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     data = call.data.split("_")
     s_id = data[1]
@@ -616,8 +604,6 @@ async def order_info(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("fp_search_order_"))
 async def start_order_search(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     page = int(call.data.split("_")[3])
     await state.update_data(last_fp_sales_page=page)
@@ -728,8 +714,6 @@ async def process_order_search(message: types.Message, state: FSMContext):
 # --- СМЕНА GOLDEN KEY ---
 @router.callback_query(F.data == "edit_gk")
 async def edit_gk(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="❌ Отмена", callback_data="fp_settings"))
@@ -758,8 +742,6 @@ async def process_gk(message: types.Message, state: FSMContext):
 # --- СМЕНА USER AGENT ---
 @router.callback_query(F.data == "edit_ua")
 async def edit_ua(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="❌ Отмена", callback_data="fp_settings"))
@@ -787,8 +769,6 @@ async def process_ua(message: types.Message, state: FSMContext):
 # === ЛОГИКА ИЗМЕНЕНИЯ ЦЕНЫ ПРОДАЖИ ===
 @router.callback_query(F.data.startswith("editsell_"))
 async def start_edit_sell(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
         
     s_id = call.data.split("_")[1]
     await state.update_data(edit_order_id=s_id)
@@ -847,8 +827,6 @@ async def process_edit_sell(message: types.Message, state: FSMContext):
 # --- АВТО-ЗАКУП ---
 @router.callback_query(F.data.startswith("fast_save_"))
 async def fast_save_cost(call: types.CallbackQuery):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     params = call.data.split("_")
     order_id = params[2]
@@ -887,8 +865,6 @@ async def fast_save_cost(call: types.CallbackQuery):
 # --- РУЧНОЙ ВВОД ЗАКУПА ---
 @router.callback_query(F.data.startswith("setc_"))
 async def start_cost(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     data = call.data.split("_")
     s_id, price = data[1], data[2]
@@ -970,8 +946,6 @@ async def delete_msg(call: types.CallbackQuery):
 
 @router.callback_query(F.data == "fp_main")
 async def back_main(call: types.CallbackQuery, state: FSMContext):
-    if not is_funpay_admin(call.from_user.id):
-        return await no_access_callback(call)
 
     await state.clear()
     await show_funpay_auto_menu(call)

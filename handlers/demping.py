@@ -12,8 +12,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.enums import ParseMode
 
-from loader import is_authorized
-from handlers.utils import no_access_reply, no_access_callback
 from config import ADMIN_ID
 
 router = Router()
@@ -167,8 +165,6 @@ CARDINAL_SERVICE_NAME = "funpaycardinal"
 
 @router.callback_query(F.data == "dmp_menu")
 async def cb_dmp_menu(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     has_file = os.path.exists(DEMPING_FILE)
     text = "📁 <b>Управление файлом демпинга</b>\n\n"
@@ -185,8 +181,6 @@ async def cb_dmp_menu(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "dmp_upload")
 async def cb_dmp_upload(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.set_state(DempingStates.waiting_upload)
     await call.message.answer(
         "📥 <b>Загрузка файла демпинга</b>\n\n"
@@ -229,8 +223,6 @@ async def proc_dmp_upload(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "dmp_download")
 async def cb_dmp_download(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     if not os.path.exists(DEMPING_FILE):
         return await call.answer("Файл не найден", show_alert=True)
     with open(DEMPING_FILE, "rb") as f:
@@ -245,8 +237,6 @@ async def cb_dmp_download(call: types.CallbackQuery):
 @router.callback_query(F.data == "dmp_to_cardinal")
 async def cb_dmp_to_cardinal(call: types.CallbackQuery):
     """Копирует demping.json в директорию Cardinal и перезапускает его"""
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     if not os.path.exists(DEMPING_FILE):
         return await call.answer("Файл не найден", show_alert=True)
 
@@ -342,8 +332,6 @@ async def cb_dmp_to_cardinal(call: types.CallbackQuery):
 
 @router.callback_query(F.data == "dmp_autolink")
 async def cb_dmp_autolink(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     if not os.path.exists(DEMPING_FILE):
         return await call.answer("Сначала загрузите файл демпинга", show_alert=True)
@@ -391,8 +379,6 @@ async def cb_dmp_autolink(call: types.CallbackQuery):
 
 @router.callback_query(F.data == "dmp_update")
 async def cb_dmp_update(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     demping = load_demping()
     mp = _load_mp(call.from_user.id)
@@ -507,8 +493,6 @@ def _build_cashback_menu_kb(games: list, prefs: dict, page: int = 0) -> InlineKe
 
 @router.callback_query(F.data.startswith("dmp_setall_"))
 async def cb_dmp_setall(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     choice = call.data.split("_")[2]  # "yes" / "no"
     state_data = await state.get_data()
@@ -528,8 +512,6 @@ async def cb_dmp_setall(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("dmp_cbpg_"))
 async def cb_dmp_cashback_page(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     page = int(call.data.split("_")[2])
     state_data = await state.get_data()
@@ -547,8 +529,6 @@ async def cb_dmp_cashback_page(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("dmp_pref_"))
 async def cb_dmp_toggle_pref(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     parts = call.data.split("_")
     idx = int(parts[2])
@@ -576,8 +556,6 @@ async def cb_dmp_toggle_pref(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "dmp_apply_update")
 async def cb_dmp_apply_update(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     state_data = await state.get_data()
     prefs = state_data.get("prefs", {})
@@ -597,8 +575,6 @@ async def cb_dmp_apply_update(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "dmp_conflicts")
 async def cb_dmp_conflicts(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     state_data = await state.get_data()
     conflicts = state_data.get("last_dmp_conflicts", [])

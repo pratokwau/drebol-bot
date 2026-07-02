@@ -10,7 +10,6 @@ from aiogram.fsm.context import FSMContext
 from loader import bot
 from config import ADMIN_ID
 from database import db
-from handlers.utils import no_access_reply, no_access_callback
 from handlers.funpay_admin import extract_order_amount, fetch_funpay_sales, get_auto_buy_prices, make_funpay_account
 from states.states import TaskUnfilledStates
 
@@ -172,7 +171,6 @@ async def remind_unfilled_orders():
     print("[TASKS] Проверка незаполненных заказов...")
     
     gk, ua = db.get_config()
-    if not gk: return
 
     try:
         acc = make_funpay_account(gk, ua)
@@ -209,7 +207,6 @@ async def cmd_check_unfilled(message: types.Message):
     """Ручная проверка незаполненных заказов по команде"""
     # Проверка на админа (на всякий случай)
     if message.from_user.id != ADMIN_ID:
-        await no_access_reply(message)
         return
 
     await message.answer(
@@ -222,8 +219,6 @@ async def cmd_check_unfilled(message: types.Message):
 
 @router.callback_query(F.data == "task_fill_unfilled")
 async def cb_task_fill_unfilled_menu(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     await call.message.edit_text(
         "🧾 <b>Незаполненные заказы</b>\n\n"
@@ -236,8 +231,6 @@ async def cb_task_fill_unfilled_menu(call: types.CallbackQuery, state: FSMContex
 
 @router.callback_query(F.data == "task_unfilled_period_day")
 async def cb_task_unfilled_day(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     await _run_unfilled_check(call.message, state, "day")
     await call.answer()
@@ -245,8 +238,6 @@ async def cb_task_unfilled_day(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "task_unfilled_period_prev_day")
 async def cb_task_unfilled_prev_day(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     await _run_unfilled_check(call.message, state, "prev_day")
     await call.answer()
@@ -254,8 +245,6 @@ async def cb_task_unfilled_prev_day(call: types.CallbackQuery, state: FSMContext
 
 @router.callback_query(F.data == "task_unfilled_period_custom")
 async def cb_task_unfilled_custom(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.set_state(TaskUnfilledStates.waiting_custom_period)
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="↩️ Назад", callback_data="task_fill_unfilled"))
@@ -354,8 +343,6 @@ async def _run_unfilled_check(target, state: FSMContext, period: str, custom_tex
 
 @router.callback_query(F.data == "task_unfilled_run")
 async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # Добавили state
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await call.answer("Загружаю список. Пожалуйста, подождите...")
     try:
         await call.message.delete()

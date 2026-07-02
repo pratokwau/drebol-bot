@@ -10,9 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
 
-from loader import is_authorized
 from states.states import ProfitCalc
-from handlers.utils import no_access_reply
 
 router = Router()
 
@@ -60,9 +58,6 @@ def cancel_only_kb() -> InlineKeyboardMarkup:
 
 @router.message(Command("rassstart"))
 async def rassstart_command(message: types.Message, state: FSMContext):
-    if not is_authorized(message.from_user.id):
-        return await no_access_reply(message)
-
     await state.set_state(ProfitCalc.waiting_for_commission)
     await message.answer(
         "🧮 <b>Расчёт FunPay</b>\n\n"

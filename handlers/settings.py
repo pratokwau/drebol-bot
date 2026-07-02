@@ -12,10 +12,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
 
-from loader import is_authorized
 from config import ADMIN_ID
 from base_store import user_db_path, admin_db_path, connect, ensure_dir
-from handlers.utils import no_access_reply, no_access_callback
 
 router = Router()
 EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
@@ -152,7 +150,7 @@ def settings_kb(uid: int) -> InlineKeyboardMarkup:
 
 
 def has_settings_access(uid: int) -> bool:
-    return is_authorized(uid)
+    return True
 
 
 def parse_time_value(text: str) -> str | None:
@@ -168,8 +166,6 @@ def parse_time_value(text: str) -> str | None:
 @router.message(Command("settings"))
 async def cmd_settings(message: types.Message, state: FSMContext):
     uid = message.from_user.id
-    if not has_settings_access(uid):
-        return await no_access_reply(message)
     await state.clear()
     kb = settings_kb(uid)
     await message.answer("⚙️ <b>Настройки уведомлений</b>\n\nНажмите на пункт, чтобы переключить:", parse_mode=ParseMode.HTML, reply_markup=kb)
@@ -178,11 +174,8 @@ async def cmd_settings(message: types.Message, state: FSMContext):
 @router.callback_query(F.data.startswith("stg_toggle_"))
 async def cb_toggle(call: types.CallbackQuery):
     uid = call.from_user.id
-    if not has_settings_access(uid):
-        return await no_access_callback(call)
     key = call.data.replace("stg_toggle_", "")
-    if not is_authorized(uid) and key not in ("restart_notify", "broadcast_notify"):
-        return await call.answer("Недоступно", show_alert=True)
+    await call.answer("Недоступно", show_alert=True)
     current = is_enabled(uid, key)
     update_setting(uid, key, not current)
     kb = settings_kb(uid)
@@ -192,8 +185,6 @@ async def cb_toggle(call: types.CallbackQuery):
 
 @router.callback_query(F.data == "stg_set_time")
 async def cb_set_time(call: types.CallbackQuery, state: FSMContext):
-    if not is_authorized(call.from_user.id):
-        return await no_access_callback(call)
     s = get_user_settings(call.from_user.id)
     await state.set_state(SettingsStates.waiting_time)
     await call.message.answer(
@@ -206,8 +197,6 @@ async def cb_set_time(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "stg_set_admin_report_time")
 async def cb_set_admin_report_time(call: types.CallbackQuery, state: FSMContext):
-    if int(call.from_user.id) != int(ADMIN_ID):
-        return await no_access_callback(call)
     s = get_user_settings(call.from_user.id)
     await state.set_state(SettingsStates.waiting_admin_report_time)
     await call.message.answer(
@@ -227,8 +216,6 @@ async def cb_cancel_time(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "stg_voice_menu")
 async def cb_voice_menu(call: types.CallbackQuery):
-    if not is_authorized(call.from_user.id):
-        return await no_access_callback(call)
     s = get_user_settings(call.from_user.id)
     current = s["tts_voice"]
     buttons = []
@@ -242,8 +229,6 @@ async def cb_voice_menu(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("stg_voice_ru"))
 async def cb_set_voice(call: types.CallbackQuery):
-    if not is_authorized(call.from_user.id):
-        return await no_access_callback(call)
     voice_id = call.data.replace("stg_voice_", "")
     if voice_id not in TTS_VOICES:
         return await call.answer("Неизвестный голос", show_alert=True)
@@ -255,17 +240,13 @@ async def cb_set_voice(call: types.CallbackQuery):
 
 @router.callback_query(F.data == "stg_back")
 async def cb_stg_back(call: types.CallbackQuery):
-    if not is_authorized(call.from_user.id):
-        return await no_access_callback(call)
     await call.message.edit_text("⚙️ <b>Настройки уведомлений</b>\n\nНажмите на пункт, чтобы переключить:", parse_mode=ParseMode.HTML, reply_markup=settings_kb(call.from_user.id))
     await call.answer()
 
 
 @router.message(SettingsStates.waiting_time)
 async def proc_set_time(message: types.Message, state: FSMContext):
-    if not is_authorized(message.from_user.id):
-        await state.clear()
-        return
+    await state.clear()
     time_str = parse_time_value(message.text)
     if not time_str:
         return await message.answer("⚠️ Неверный формат. Введите время как <code>ЧЧ:ММ</code>, например <code>22:00</code>", parse_mode=ParseMode.HTML)

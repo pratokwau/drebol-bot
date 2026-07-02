@@ -17,8 +17,6 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
 from groq import Groq
 
-from loader import is_authorized, is_authorized_context
-from handlers.utils import no_access_reply, no_access_callback
 from handlers.ai_runtime import get_groq_api_key, get_openrouter_api_key
 
 router = Router()
@@ -169,10 +167,6 @@ def chat_actions_kb(chat_id: str) -> InlineKeyboardMarkup:
 
 @router.message(Command("ai"))
 async def cmd_ai(message: types.Message, state: FSMContext):
-    if not is_authorized_context(message.from_user.id, message.chat.id):
-        await no_access_reply(message)
-        return
-
     if not _ai_is_configured():
         await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
         return
@@ -228,11 +222,7 @@ async def _start_new_chat(source, state: FSMContext, user_id: int, is_call: bool
     & ~F.data.startswith("ai_settings_")
 )
 async def cb_ai(call: types.CallbackQuery, state: FSMContext):
-    if not is_authorized_context(call.from_user.id, call.message.chat.id):
-        await no_access_callback(call)
-        return
-
-    # В группе — кнопки доступны только тому кто их вызвал
+# В группе — кнопки доступны только тому кто их вызвал
     if call.message.chat.type in ("group", "supergroup"):
         state_data = await state.get_data()
         owner_id = state_data.get("chat_owner_id")
@@ -527,8 +517,7 @@ async def _process_ai_message(message: types.Message, state: FSMContext, user_te
 
 @router.message(AiStates.waiting_input, F.text)
 async def proc_ai_input(message: types.Message, state: FSMContext):
-    if not is_authorized_context(message.from_user.id, message.chat.id):
-        return await state.clear()
+    return await state.clear()
     if not _ai_is_configured():
         await state.clear()
         return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
@@ -537,8 +526,7 @@ async def proc_ai_input(message: types.Message, state: FSMContext):
 
 @router.message(AiStates.waiting_input, F.voice)
 async def proc_ai_voice(message: types.Message, state: FSMContext):
-    if not is_authorized_context(message.from_user.id, message.chat.id):
-        return await state.clear()
+    return await state.clear()
     if not _ai_is_configured():
         await state.clear()
         return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
@@ -582,8 +570,7 @@ async def proc_ai_voice(message: types.Message, state: FSMContext):
 
 @router.message(AiStates.waiting_input, F.photo)
 async def proc_ai_photo(message: types.Message, state: FSMContext):
-    if not is_authorized_context(message.from_user.id, message.chat.id):
-        return await state.clear()
+    return await state.clear()
     if not _ai_is_configured():
         await state.clear()
         return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)

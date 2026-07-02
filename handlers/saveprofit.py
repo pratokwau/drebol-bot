@@ -11,9 +11,8 @@ from aiogram.enums import ParseMode
 from html import escape
 from database import db
 
-from loader import is_authorized
 from states.states import SaveProfitStates, ProfitStatsStates
-from handlers.utils import load_profits, save_profits, format_date_now as format_date, no_access_reply
+from handlers.utils import load_profits, save_profits, format_date_now as format_date
 from handlers.wallet import update_wallet
 
 router = Router()
@@ -207,10 +206,6 @@ def calculate_profit_stats(profits: list, start_date: datetime, end_date: dateti
 # /saveprofit
 @router.message(Command("saveprofit"))
 async def cmd_saveprofit(message: types.Message):
-    if not is_authorized(message.from_user.id):
-        await no_access_reply(message)
-        return
-
     await message.answer(saveprofit_menu_text(), parse_mode=ParseMode.HTML, reply_markup=saveprofit_menu_keyboard())
 
 

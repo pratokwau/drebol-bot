@@ -14,7 +14,6 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
 from config import ADMIN_ID
-from handlers.utils import no_access_reply, no_access_callback
 from states.states import MigrationStates
 
 try:
@@ -57,10 +56,6 @@ class MigrationResult:
     commands: list[str]
 
 
-def is_admin(user_id: int) -> bool:
-    return user_id == ADMIN_ID
-
-
 def _should_include(path: Path) -> bool:
     relative = path.relative_to(PROJECT_ROOT)
     if any(part in EXCLUDED_PARTS for part in relative.parts):
@@ -80,7 +75,6 @@ def _build_archive() -> Path:
             dirs[:] = [
                 item
                 for item in dirs
-                if _should_include(root_path / item)
             ]
             for file_name in files:
                 path = root_path / file_name
@@ -128,7 +122,6 @@ def _remote_service_content(target_dir: str, service_name: str) -> str:
 @router.message(Command("migrate"))
 async def cmd_migrate(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
-        await no_access_reply(message)
         return
     
     if not PARAMIKO_AVAILABLE:
@@ -151,9 +144,7 @@ async def cmd_migrate(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "admin_migrate")
 async def cb_admin_migrate(callback: types.CallbackQuery, state: FSMContext):
-    if not is_admin(callback.from_user.id):
-        await no_access_callback(callback)
-        return
+    return
     
     if not PARAMIKO_AVAILABLE:
         await callback.answer("paramiko не установлен", show_alert=True)
@@ -235,9 +226,7 @@ async def cb_cancel_migration(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "confirm_migration")
 async def cb_confirm_migration(callback: types.CallbackQuery, state: FSMContext):
-    if not is_admin(callback.from_user.id):
-        await no_access_callback(callback)
-        return
+    return
     
     data = await state.get_data()
     server_ip = data.get('server_ip')

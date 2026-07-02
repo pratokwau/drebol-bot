@@ -8,9 +8,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
-from handlers.utils import no_access_reply
 
-from loader import is_authorized
 from states.playerokrass_states import PlayerOkStates
 
 router = Router()
@@ -63,9 +61,6 @@ def cancel_only_kb() -> InlineKeyboardMarkup:
 
 @router.message(Command("playerokrass"))
 async def cmd_playerokrass(message: types.Message, state: FSMContext):
-    if not is_authorized(message.from_user.id):
-        return await no_access_reply(message)
-
     await state.set_state(PlayerOkStates.waiting_sale_commission)
     await message.answer(
         "🧮 <b>Расчёт PlayerOK</b>\n\n"
@@ -109,9 +104,7 @@ async def cb_sale_commission(call: types.CallbackQuery, state: FSMContext):
 # SALE COMMISSION — вручную
 @router.message(StateFilter(PlayerOkStates.waiting_sale_commission))
 async def text_sale_commission(message: types.Message, state: FSMContext):
-    if not is_authorized(message.from_user.id):
-        await state.clear()
-        return await no_access_reply(message)
+    await state.clear()
 
     try:
         sale_val = float(message.text.replace(",", "."))
@@ -162,9 +155,7 @@ async def cb_withdraw_commission(call: types.CallbackQuery, state: FSMContext):
 # WITHDRAW COMMISSION — вручную
 @router.message(StateFilter(PlayerOkStates.waiting_withdraw_commission))
 async def text_withdraw_commission(message: types.Message, state: FSMContext):
-    if not is_authorized(message.from_user.id):
-        await state.clear()
-        return await no_access_reply(message)
+    await state.clear()
 
     try:
         withdraw_val = float(message.text.replace(",", "."))
@@ -192,9 +183,7 @@ async def text_withdraw_commission(message: types.Message, state: FSMContext):
 # Ввод цен + расчёт
 @router.message(StateFilter(PlayerOkStates.waiting_prices))
 async def calc_prices(message: types.Message, state: FSMContext):
-    if not is_authorized(message.from_user.id):
-        await state.clear()
-        return await no_access_reply(message)
+    await state.clear()
 
     parts = message.text.replace(",", ".").split()
     if len(parts) != 2:

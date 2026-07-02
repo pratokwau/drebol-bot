@@ -12,7 +12,6 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedIn
 from aiogram.enums import ParseMode
 from PIL import Image, ImageDraw, ImageFont
 
-from loader import is_authorized
 
 router = Router()
 
@@ -480,8 +479,6 @@ def _kb_after_chart(cat: str, since: datetime, until: datetime, has_events: bool
 async def cmd_status(message: types.Message):
     user_id = message.from_user.id
 
-    if not is_authorized(user_id):
-        return
     
     await message.answer(
         "📊 <b>Мониторинг статуса</b>\n\nВыберите раздел:",
@@ -597,8 +594,6 @@ async def cb_status_period(call: types.CallbackQuery, state: FSMContext):
 
 @router.message(StatusPeriod.waiting_bot_custom)
 async def handle_custom_period(message: types.Message, state: FSMContext):
-    if not is_authorized(message.from_user.id):
-        return
     text = message.text.strip()
     data = await state.get_data()
     cat  = data.get("status_cat", "bot")

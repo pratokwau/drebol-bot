@@ -30,7 +30,6 @@ from handlers.minprice import (
     resolve_sbp_rate_for_game,
     strip_leading_emoji,
 )
-from handlers.utils import no_access_callback
 
 router = Router()
 
@@ -156,7 +155,6 @@ def _normalize_cert_matches(matches: dict, items: dict) -> dict:
     item_names = {
         _normalize(_clean_cert_name(info.get("name", ""))): _clean_cert_name(info.get("name", ""))
         for _, info in items.items()
-        if isinstance(info, dict) and info.get("name")
     }
     normalized = {}
     for raw_name, offer_ids in matches.items():
@@ -205,7 +203,6 @@ def _filter_ai_matches_by_nominal(matches: dict, lots: dict, items: dict) -> dic
             _money(info.get("nominal")) or _nominal_from_name(info.get("name", ""))
         )
         for _, info in items.items()
-        if isinstance(info, dict) and info.get("name")
     }
     lot_nominals = {
         str(offer_id): set(_parse_nominals(str(lot.get("name", ""))))
@@ -220,7 +217,6 @@ def _filter_ai_matches_by_nominal(matches: dict, lots: dict, items: dict) -> dic
             continue
         good_ids = [
             oid for oid in offer_ids
-            if nominal in lot_nominals.get(str(oid), set()) and str(oid) not in used_offer_ids
         ]
         if good_ids:
             filtered[clean_name] = [good_ids[0]]
@@ -624,8 +620,6 @@ def _build_item_text(game_name: str, info: dict, rate: float) -> str:
 
 @router.callback_query(F.data == "cert_menu")
 async def cb_cert_menu(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     data = load_certificates(call.from_user.id)
     await call.message.edit_text(
@@ -638,8 +632,6 @@ async def cb_cert_menu(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cert_freshness")
 async def cb_cert_freshness(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     data = load_certificates(call.from_user.id)
     games = list(data.keys())
@@ -653,8 +645,6 @@ async def cb_cert_freshness(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cert_freshness_upd")
 async def cb_cert_freshness_upd(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     data = load_certificates(call.from_user.id)
     games = list(data.keys())
@@ -713,8 +703,6 @@ async def cb_cert_freshness_upd(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("cert_pg_"))
 async def cb_cert_games(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     page = int(call.data.split("_")[2])
     data = load_certificates(call.from_user.id)
@@ -731,8 +719,6 @@ async def cb_cert_games(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cert_import_games")
 async def cb_cert_import_games(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
 
     await call.answer("🔄 Загружаю игры с FunPay...")
     gk, ua = db.get_config()
@@ -783,8 +769,6 @@ async def cb_cert_import_games(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_imptoggle_"))
 async def cb_cert_import_toggle(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[2]
     state_data = await state.get_data()
     new_games = state_data.get("cert_import_games", {})
@@ -804,8 +788,6 @@ async def cb_cert_import_toggle(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cert_import_confirm")
 async def cb_cert_import_confirm(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     state_data = await state.get_data()
     new_games = state_data.get("cert_import_games", {})
     selected = set(state_data.get("cert_import_selected", []))
@@ -844,8 +826,6 @@ async def cb_cert_import_confirm(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cert_add_game")
 async def cb_cert_add_game(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.set_state(CertificateStates.waiting_game_name)
     await call.message.edit_text(
         "➕ <b>Добавление игры</b>\n\n"
@@ -895,8 +875,6 @@ async def proc_cert_game_name(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_game_"))
 async def cb_cert_game(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.clear()
     game_hash = call.data.split("_")[2]
     data = load_certificates(call.from_user.id)
@@ -910,8 +888,6 @@ async def cb_cert_game(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.regexp(r"^cert_items_[0-9a-f]{8}_\d+$"))
 async def cb_cert_items_page(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     _, _, game_hash, page_raw = call.data.split("_")
     page = int(page_raw)
     data = load_certificates(call.from_user.id)
@@ -925,8 +901,6 @@ async def cb_cert_items_page(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("cert_rate_"))
 async def cb_cert_rate(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[2]
     data = load_certificates(call.from_user.id)
     game_name = _game_by_hash(data, game_hash)
@@ -976,8 +950,6 @@ async def proc_cert_rate(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_add_items_"))
 async def cb_cert_add_items(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[3]
     await state.update_data(cert_game_hash=game_hash)
     await state.set_state(CertificateStates.waiting_items)
@@ -1056,8 +1028,6 @@ async def proc_cert_items_photo(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_items_edit_"))
 async def cb_cert_items_edit(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[3]
     await state.update_data(cert_game_hash=game_hash)
     await state.set_state(CertificateStates.waiting_edit_items)
@@ -1114,8 +1084,6 @@ async def proc_cert_edit_items(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_items_add_"))
 async def cb_cert_items_add(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     parts = call.data.split("_")
     scope = parts[3]
     game_hash = parts[4]
@@ -1147,8 +1115,6 @@ async def cb_cert_items_add(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_fetchrate_"))
 async def cb_cert_fetch_rate(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[2]
     data = load_certificates(call.from_user.id)
     game_name = _game_by_hash(data, game_hash)
@@ -1193,8 +1159,6 @@ async def cb_cert_fetch_rate(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("cert_autolink_"))
 async def cb_cert_autolink(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[2]
     data = load_certificates(call.from_user.id)
     game_name = _game_by_hash(data, game_hash)
@@ -1224,8 +1188,6 @@ async def cb_cert_autolink(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_autolink_all_") or F.data.startswith("cert_autolink_unlinked_"))
 async def cb_cert_autolink_mode(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     only_unlinked = call.data.startswith("cert_autolink_unlinked_")
     game_hash = call.data.split("_")[4]
     data = load_certificates(call.from_user.id)
@@ -1239,7 +1201,6 @@ async def cb_cert_autolink_mode(call: types.CallbackQuery, state: FSMContext):
 
     items = {
         iid: info for iid, info in all_items.items()
-        if not only_unlinked or not info.get("offer_id")
     }
     if not items:
         return await call.answer("Нет товаров без лотов", show_alert=True)
@@ -1315,8 +1276,6 @@ async def cb_cert_autolink_mode(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_auto_confirm_"))
 async def cb_cert_auto_confirm(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[3]
     state_data = await state.get_data()
     matches = state_data.get("cert_auto_matches", {})
@@ -1353,8 +1312,6 @@ async def cb_cert_auto_confirm(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_edit_"))
 async def cb_cert_edit(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     _, _, game_hash, page_raw = call.data.split("_")
     page = int(page_raw)
     data = load_certificates(call.from_user.id)
@@ -1377,8 +1334,6 @@ async def cb_cert_edit(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("cert_item_"))
 async def cb_cert_item(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     _, _, game_hash, item_id = call.data.split("_")
     data = load_certificates(call.from_user.id)
     game_name = _game_by_hash(data, game_hash)
@@ -1405,8 +1360,6 @@ async def cb_cert_item(call: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_delgame_"))
 async def cb_cert_del_game(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     game_hash = call.data.split("_")[2]
     data = load_certificates(call.from_user.id)
     game_name = _game_by_hash(data, game_hash)
@@ -1426,8 +1379,6 @@ async def cb_cert_del_game(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("cert_delitem_"))
 async def cb_cert_del_item(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     _, _, game_hash, item_id = call.data.split("_")
     data = load_certificates(call.from_user.id)
     game_name = _game_by_hash(data, game_hash)
@@ -1448,8 +1399,6 @@ async def cb_cert_del_item(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("cert_cost_"))
 async def cb_cert_cost(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     _, _, game_hash, item_id = call.data.split("_")
     await state.update_data(cert_game_hash=game_hash, cert_item_id=item_id)
     await state.set_state(CertificateStates.waiting_cost)
@@ -1492,8 +1441,6 @@ async def proc_cert_cost(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("cert_offer_"))
 async def cb_cert_offer(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     _, _, game_hash, item_id = call.data.split("_")
     await state.update_data(cert_game_hash=game_hash, cert_item_id=item_id)
     await state.set_state(CertificateStates.waiting_offer_id)
@@ -1538,8 +1485,6 @@ async def proc_cert_offer(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "cert_upload")
 async def cb_cert_upload(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     await state.set_state(CertificateStates.waiting_upload)
     await call.message.edit_text(
         "📥 <b>Загрузка демпинг-файла сертификатов</b>\n\n"
@@ -1580,8 +1525,6 @@ async def proc_cert_upload(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "cert_download")
 async def cb_cert_download(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     if not os.path.exists(CERT_DEMPING_FILE):
         return await call.answer("Файл не найден", show_alert=True)
     with open(CERT_DEMPING_FILE, "rb") as f:
@@ -1595,8 +1538,6 @@ async def cb_cert_download(call: types.CallbackQuery):
 
 @router.callback_query(F.data == "cert_update_dmp")
 async def cb_cert_update_dmp(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     certs = load_certificates(call.from_user.id)
     demping = load_cert_demping()
     updated = 0
@@ -1641,8 +1582,6 @@ async def cb_cert_update_dmp(call: types.CallbackQuery):
 
 @router.callback_query(F.data == "cert_to_cardinal")
 async def cb_cert_to_cardinal(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        return await no_access_callback(call)
     if not os.path.exists(CERT_DEMPING_FILE):
         return await call.answer("Файл не найден", show_alert=True)
     await call.message.edit_text("⏳ <b>Отправляю сертификаты в Cardinal...</b>", parse_mode=ParseMode.HTML)
@@ -1689,7 +1628,6 @@ def get_certificate_auto_buy_prices(product_full_name: str, order_game: str | No
         direct_games = {
             game_name: game_data
             for game_name, game_data in data.items()
-            if game_clean in _normalize(game_name) or _normalize(game_name) in game_clean
         }
     else:
         direct_games = data

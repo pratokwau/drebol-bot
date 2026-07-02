@@ -18,8 +18,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from groq import Groq
 
-from loader import is_authorized
-from handlers.utils import no_access_reply, no_access_callback
 from handlers.demping import load_demping, DEMPING_FILE
 from config import ADMIN_ID, FP_TOKEN
 from handlers.ai_runtime import get_groq_api_key, get_openrouter_api_key
@@ -35,8 +33,6 @@ try:
 except ImportError:
     openrouter_client = None
     print("[INIT] openai пакет не установлен, OpenRouter fallback недоступен")
-
-router = Router()
 
 COMMISSION = 0.03
 MIN_PROFIT = 0.01
@@ -137,6 +133,7 @@ def build_edit_item_text(name: str, cost, min_price, cashback_key: str, offer_id
 
 class MinPriceStates(StatesGroup):
     waiting_add_game = State()
+    waiting_import_file = State()
     waiting_rename_game = State()
     waiting_add_item_name = State()
     waiting_add_item_cost = State()
@@ -882,6 +879,10 @@ def games_kb(games: list, page: int, mp: dict | None = None) -> InlineKeyboardMa
         InlineKeyboardButton(text="📥 Импорт игр из FunPay", callback_data="mp_import_games"),
     ])
     buttons.append([
+        InlineKeyboardButton(text="📤 Экспорт настроек", callback_data="mp_export_settings"),
+        InlineKeyboardButton(text="📥 Импорт настроек", callback_data="mp_import_settings"),
+    ])
+    buttons.append([
         InlineKeyboardButton(text="📊 Актуальность данных", callback_data="mp_freshness"),
     ])
     buttons.append([
@@ -1127,7 +1128,6 @@ def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = No
 @router.message(Command("minprice"))
 async def cmd_minprice(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        await no_access_reply(message)
         return
 
     await state.clear()
@@ -1142,7 +1142,6 @@ async def cmd_minprice(message: types.Message, state: FSMContext):
 @router.callback_query(F.data.startswith("mp_"))
 async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != ADMIN_ID:
-        await no_access_callback(call)
         return
 
     data = call.data
@@ -1580,7 +1579,6 @@ async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
         if only_unlinked:
             items = {
                 iid: info for iid, info in items.items()
-                if isinstance(info, dict) and not get_item_offer_ids(info)
             }
         if not items:
             await call.message.edit_text(
@@ -1852,7 +1850,6 @@ async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
         items = mp.get(game_name, {})
         unlinked_items = [
             (iid, info) for iid, info in items.items()
-            if iid != "_meta" and isinstance(info, dict) and not get_item_offer_ids(info)
         ]
         if not unlinked_items:
             return await call.answer("Все товары уже привязаны!", show_alert=True)
@@ -2706,6 +2703,152 @@ async def proc_edit_param_value(message: types.Message, state: FSMContext):
     ]
 
     await message.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+# --- Экспорт/Импорт настроек ---
+@router.callback_query(F.data == "mp_export_settings")
+async def cb_export_settings(call: types.CallbackQuery):
+    """Экспорт настроек минимальных цен в файл"""
+    
+    mp = load_mp(call.from_user.id)
+    if not mp:
+        await call.answer("Нет настроек для экспорта", show_alert=True)
+        return
+    
+    # Создаем JSON файл
+    import tempfile
+    from aiogram.types import FSInputFile
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+        json.dump(mp, f, ensure_ascii=False, indent=2)
+        temp_path = f.name
+    
+    try:
+        document = FSInputFile(temp_path, filename="minprice_export.json")
+        await call.message.answer_document(
+            document,
+            caption="📤 <b>Экспорт настроек минимальных цен</b>\n\n"
+                    "Сохраните этот файл. Для импорта используйте кнопку '📥 Импорт настроек'.",
+            parse_mode="HTML"
+        )
+        await call.answer("✅ Файл отправлен")
+    finally:
+        import os
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+
+
+@router.callback_query(F.data == "mp_import_settings")
+async def cb_import_settings(call: types.CallbackQuery, state: FSMContext):
+    """Начало импорта настроек"""
+    
+    await state.set_state(MinPriceStates.waiting_import_file)
+    await call.message.edit_text(
+        "📥 <b>Импорт настроек минимальных цен</b>\n\n"
+        "Отправьте JSON-файл с настройками.\n\n"
+        "<i>⚠️ Внимание: текущие настройки будут заменены!</i>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="mp_pg_0")]
+        ])
+    )
+    await call.answer()
+
+
+@router.message(MinPriceStates.waiting_import_file, F.document)
+async def proc_import_file(message: types.Message, state: FSMContext):
+    """Обработка полученного файла"""
+    document = message.document
+    
+    # Проверяем что это JSON файл
+    if not document.file_name.endswith('.json'):
+        await message.answer(
+            "⚠️ Ошибка: файл должен быть в формате JSON (.json)",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
+            ])
+        )
+        await state.clear()
+        return
+    
+    # Скачиваем файл
+    import tempfile
+    temp_file = tempfile.NamedTemporaryFile(delete=False)
+    await message.bot.download(document.file.file_id, temp_file.name)
+    
+    try:
+        # Читаем и парсим JSON
+        with open(temp_file.name, 'r', encoding='utf-8') as f:
+            imported_data = json.load(f)
+        
+        # Проверяем структуру данных
+        if not isinstance(imported_data, dict):
+            raise ValueError("Неверный формат данных")
+        
+        # Сохраняем импортированные данные
+        mp_file = get_mp_file(message.from_user.id)
+        with open(mp_file, 'w', encoding='utf-8') as f:
+            json.dump(imported_data, f, ensure_ascii=False, indent=2)
+        
+        # Считаем статистику
+        games_count = len(imported_data)
+        items_count = sum(
+            len([k for k in v.keys() if k != '_meta'])
+            for v in imported_data.values()
+        )
+        
+        await state.clear()
+        await message.answer(
+            f"✅ <b>Настройки успешно импортированы!</b>\n\n"
+            f"🎮 Игр: {games_count}\n"
+            f"📦 Товаров: {items_count}",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🎮 К минимальным ценам", callback_data="mp_pg_0")]
+            ])
+        )
+    
+    except json.JSONDecodeError as e:
+        await message.answer(
+            f"⚠️ Ошибка чтения JSON файла:\n<code>{str(e)}</code>\n\n"
+            f"Проверьте формат файла и попробуйте снова.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
+            ])
+        )
+        await state.clear()
+    
+    except Exception as e:
+        await message.answer(
+            f"⚠️ Ошибка импорта:\n<code>{str(e)}</code>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
+            ])
+        )
+        await state.clear()
+    
+    finally:
+        import os
+        try:
+            os.unlink(temp_file.name)
+        except:
+            pass
+
+
+@router.message(MinPriceStates.waiting_import_file)
+async def proc_import_wrong_type(message: types.Message, state: FSMContext):
+    """Если прислали не файл"""
+    await message.answer(
+        "⚠️ Ошибка: ожидается JSON-файл.\n\n"
+        "Отправьте файл с настройками.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="mp_pg_0")]
+        ])
+    )
+
+
 def _get_groq_client():
     global groq_client
     key = get_groq_api_key()
@@ -2720,10 +2863,8 @@ def _get_openrouter_client():
     if openrouter_client is None:
         try:
             from openai import OpenAI
-            openrouter_client = OpenAI(
-                api_key=key,
-                base_url="https://openrouter.ai/api/v1"
-            )
+            openrouter_client = None
         except ImportError:
             openrouter_client = None
+            print("[INIT] openai пакет не установлен, OpenRouter fallback недоступен")
     return openrouter_client

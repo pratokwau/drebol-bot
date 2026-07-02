@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 
 from config import ADMIN_ID
-from handlers.utils import load_inventory, save_inventory, no_access_reply, no_access_callback
+from handlers.utils import load_inventory, save_inventory
 
 router = Router()
 
@@ -113,7 +113,6 @@ def back_to_list_kb():
 @router.message(Command("items"))
 async def cmd_list_items(message: types.Message):
     if not is_admin(message.from_user.id):
-        await no_access_reply(message)
         return
 
     inv = load_inventory()
@@ -128,7 +127,6 @@ async def cmd_list_items(message: types.Message):
 @router.callback_query(F.data.startswith("inv_"))
 async def cb_inventory_all(call: types.CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
-        await no_access_callback(call)
         return
 
     data = call.data

@@ -1,13 +1,9 @@
-# handlers/admin.py
-
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 
-from handlers.utils import no_access_reply, no_access_callback
-from config import ADMIN_ID
 from update_manager import (
     get_update_status,
     update_from_git,
@@ -17,10 +13,6 @@ from update_manager import (
 )
 
 router = Router()
-
-
-def is_admin(user_id: int) -> bool:
-    return user_id == ADMIN_ID
 
 
 def admin_menu() -> InlineKeyboardMarkup:
@@ -43,10 +35,6 @@ def admin_menu() -> InlineKeyboardMarkup:
 
 @router.message(Command("admin"))
 async def cmd_admin(message: types.Message):
-    if not is_admin(message.from_user.id):
-        await no_access_reply(message)
-        return
-
     update_label, _ = get_update_status()
 
     await message.answer(
@@ -60,10 +48,6 @@ async def cmd_admin(message: types.Message):
 
 @router.callback_query(F.data == "back_to_admin")
 async def cb_back_to_admin(callback: types.CallbackQuery, state: FSMContext):
-    if not is_admin(callback.from_user.id):
-        await no_access_callback(callback)
-        return
-
     await state.clear()
     await callback.message.edit_text(
         f"👨🏼‍💻 <b>Админ-панель</b>\n\n"
@@ -77,10 +61,6 @@ async def cb_back_to_admin(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "admin_update")
 async def cb_admin_update(callback: types.CallbackQuery):
-    if not is_admin(callback.from_user.id):
-        await no_access_callback(callback)
-        return
-
     status, has_update = get_update_status()
     if not has_update:
         await callback.answer("Новая версия не найдена", show_alert=True)

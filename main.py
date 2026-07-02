@@ -77,12 +77,9 @@ from middlewares.command_restriction import CommandRestrictionMiddleware
 async def send_saveprofit_notifications():
     """Каждую минуту проверяет, кому из пользователей пора слать ежедневный отчёт."""
     from handlers.settings import load_all, DEFAULTS
-    from loader import authorized_users
-
     now = datetime.now().strftime("%H:%M")
     all_settings = load_all()
-
-    for uid in authorized_users:
+    for uid in [ADMIN_ID]:
         if int(uid) == int(ADMIN_ID):
             continue
         s = {**DEFAULTS, **all_settings.get(str(uid), {})}
@@ -177,7 +174,6 @@ async def main():
         await bot.set_my_commands([
             BotCommand(command="start", description="Главное меню"),
             BotCommand(command="cancel", description="Выход из действия"),
-            BotCommand(command="migrate", description="Миграция на новый сервер"),
         ])
 
     @dp.callback_query(F.data.startswith("restart_mute_"))
@@ -192,13 +188,10 @@ async def main():
             pass
 
     async def notify_restart():
-        from loader import authorized_users
         from handlers.settings import is_enabled
-
         # Сразу при старте фиксируем даунтайм бота
         await _check_downtime_on_startup()
-
-        for uid in authorized_users:
+        for uid in [ADMIN_ID]:
             if not is_enabled(uid, "restart_notify"):
                 continue
             if _is_muted(uid):
