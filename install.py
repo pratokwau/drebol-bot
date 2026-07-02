@@ -40,12 +40,12 @@ def main() -> None:
     print("Сейчас нужно ввести данные для запуска бота.")
     token = ask("TOKEN", required=True)
     admin_id = ask("ADMIN_ID", required=True)
-    auth_file = "authorized.json"
+    auth_file = "data/authorized.json"
 
     env = {
         "TOKEN": token,
         "ADMIN_ID": admin_id,
-        "AUTH_FILE": "authorized.json",
+        "AUTH_FILE": "data/authorized.json",
         "FP_TOKEN": "",
         "DATA_DIR": "data",
         "INVENTORY_FILE": "data/inventory.json",
