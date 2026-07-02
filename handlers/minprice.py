@@ -1151,8 +1151,52 @@ async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
     mp = load_mp(user_id)
     games = list(mp.keys())
 
+    # --- Экспорт настроек ---
+    if data == "mp_export_settings":
+        mp_data = load_mp(user_id)
+        if not mp_data:
+            await call.answer("Нет настроек для экспорта", show_alert=True)
+            return
+        
+        import tempfile
+        from aiogram.types import FSInputFile
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+            json.dump(mp_data, f, ensure_ascii=False, indent=2)
+            temp_path = f.name
+        
+        try:
+            document = FSInputFile(temp_path, filename="minprice_export.json")
+            await call.message.answer_document(
+                document,
+                caption="📤 <b>Экспорт настроек минимальных цен</b>\n\n"
+                        "Сохраните этот файл. Для импорта используйте кнопку '📥 Импорт настроек'.",
+                parse_mode="HTML"
+            )
+            await call.answer("✅ Файл отправлен")
+        finally:
+            import os
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+
+    # --- Импорт настроек ---
+    elif data == "mp_import_settings":
+        await state.set_state(MinPriceStates.waiting_import_file)
+        await call.message.edit_text(
+            "📥 <b>Импорт настроек минимальных цен</b>\n\n"
+            "Отправьте JSON-файл с настройками.\n\n"
+            "<i>⚠️ Внимание: текущие настройки будут заменены!</i>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="❌ Отмена", callback_data="mp_pg_0")]
+            ])
+        )
+        await call.answer()
+
     # --- Главная страница ---
-    if data.startswith("mp_pg_"):
+    elif data.startswith("mp_pg_"):
         await state.clear()
         page = int(data.split("_")[2])
         text = build_games_text(games, mp)
@@ -2705,152 +2749,6 @@ async def proc_edit_param_value(message: types.Message, state: FSMContext):
     ]
 
     await message.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
-# --- Экспорт/Импорт настроек ---
-@router.callback_query(F.data == "mp_export_settings")
-async def cb_export_settings(call: types.CallbackQuery):
-    """Экспорт настроек минимальных цен в файл"""
-    
-    mp = load_mp(call.from_user.id)
-    if not mp:
-        await call.answer("Нет настроек для экспорта", show_alert=True)
-        return
-    
-    # Создаем JSON файл
-    import tempfile
-    from aiogram.types import FSInputFile
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
-        json.dump(mp, f, ensure_ascii=False, indent=2)
-        temp_path = f.name
-    
-    try:
-        document = FSInputFile(temp_path, filename="minprice_export.json")
-        await call.message.answer_document(
-            document,
-            caption="📤 <b>Экспорт настроек минимальных цен</b>\n\n"
-                    "Сохраните этот файл. Для импорта используйте кнопку '📥 Импорт настроек'.",
-            parse_mode="HTML"
-        )
-        await call.answer("✅ Файл отправлен")
-    finally:
-        import os
-        try:
-            os.unlink(temp_path)
-        except:
-            pass
-
-
-@router.callback_query(F.data == "mp_import_settings")
-async def cb_import_settings(call: types.CallbackQuery, state: FSMContext):
-    """Начало импорта настроек"""
-    
-    await state.set_state(MinPriceStates.waiting_import_file)
-    await call.message.edit_text(
-        "📥 <b>Импорт настроек минимальных цен</b>\n\n"
-        "Отправьте JSON-файл с настройками.\n\n"
-        "<i>⚠️ Внимание: текущие настройки будут заменены!</i>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="mp_pg_0")]
-        ])
-    )
-    await call.answer()
-
-
-@router.message(MinPriceStates.waiting_import_file, F.document)
-async def proc_import_file(message: types.Message, state: FSMContext):
-    """Обработка полученного файла"""
-    document = message.document
-    
-    # Проверяем что это JSON файл
-    if not document.file_name.endswith('.json'):
-        await message.answer(
-            "⚠️ Ошибка: файл должен быть в формате JSON (.json)",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
-            ])
-        )
-        await state.clear()
-        return
-    
-    # Скачиваем файл
-    import tempfile
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
-    await message.bot.download(document.file.file_id, temp_file.name)
-    
-    try:
-        # Читаем и парсим JSON
-        with open(temp_file.name, 'r', encoding='utf-8') as f:
-            imported_data = json.load(f)
-        
-        # Проверяем структуру данных
-        if not isinstance(imported_data, dict):
-            raise ValueError("Неверный формат данных")
-        
-        # Сохраняем импортированные данные
-        mp_file = get_mp_file(message.from_user.id)
-        with open(mp_file, 'w', encoding='utf-8') as f:
-            json.dump(imported_data, f, ensure_ascii=False, indent=2)
-        
-        # Считаем статистику
-        games_count = len(imported_data)
-        items_count = sum(
-            len([k for k in v.keys() if k != '_meta'])
-            for v in imported_data.values()
-        )
-        
-        await state.clear()
-        await message.answer(
-            f"✅ <b>Настройки успешно импортированы!</b>\n\n"
-            f"🎮 Игр: {games_count}\n"
-            f"📦 Товаров: {items_count}",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🎮 К минимальным ценам", callback_data="mp_pg_0")]
-            ])
-        )
-    
-    except json.JSONDecodeError as e:
-        await message.answer(
-            f"⚠️ Ошибка чтения JSON файла:\n<code>{str(e)}</code>\n\n"
-            f"Проверьте формат файла и попробуйте снова.",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
-            ])
-        )
-        await state.clear()
-    
-    except Exception as e:
-        await message.answer(
-            f"⚠️ Ошибка импорта:\n<code>{str(e)}</code>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
-            ])
-        )
-        await state.clear()
-    
-    finally:
-        import os
-        try:
-            os.unlink(temp_file.name)
-        except:
-            pass
-
-
-@router.message(MinPriceStates.waiting_import_file)
-async def proc_import_wrong_type(message: types.Message, state: FSMContext):
-    """Если прислали не файл"""
-    await message.answer(
-        "⚠️ Ошибка: ожидается JSON-файл.\n\n"
-        "Отправьте файл с настройками.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="mp_pg_0")]
-        ])
-    )
-
-
 def _get_groq_client():
     global groq_client
     key = get_groq_api_key()
