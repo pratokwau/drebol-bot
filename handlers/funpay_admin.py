@@ -28,9 +28,10 @@ except ImportError:
         _fp_account.BeautifulSoup = _beautiful_soup_compat
     except Exception:
         pass
-    from database import db
-    from config import ADMIN_ID
-    from handlers.utils import load_profits, save_profits, format_date_now, load_inventory
+
+from database import db
+from config import ADMIN_ID
+from handlers.utils import load_profits, save_profits, format_date_now, load_inventory
 
 router = Router()
 
