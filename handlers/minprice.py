@@ -34,6 +34,8 @@ except ImportError:
     openrouter_client = None
     print("[INIT] openai пакет не установлен, OpenRouter fallback недоступен")
 
+router = Router()
+
 COMMISSION = 0.03
 MIN_PROFIT = 0.01
 GAMES_PER_PAGE = 10
