@@ -152,9 +152,8 @@ class MinPriceStates(StatesGroup):
 # ====================== ХРАНИЛИЩЕ (per-user) ======================
 
 def get_mp_file(user_id: int) -> str:
-    path = f"users/{user_id}"
-    os.makedirs(path, exist_ok=True)
-    return f"{path}/minprice.json"
+    os.makedirs("data", exist_ok=True)
+    return "data/minprice.json"
 
 
 def load_mp(user_id: int) -> dict:

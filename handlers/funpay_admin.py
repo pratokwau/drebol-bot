@@ -264,7 +264,7 @@ def get_auto_buy_prices(product_full_name: str, order_game: str = None, order_am
     quantity = order_amount if order_amount and order_amount > 1 else 1
 
     try:
-        mp_path = f"users/{ADMIN_ID}/minprice.json"
+        mp_path = "data/minprice.json"
         if not os.path.exists(mp_path):
             return certificate_matches()
         with open(mp_path, encoding="utf-8") as f:

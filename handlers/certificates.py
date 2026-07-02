@@ -55,9 +55,8 @@ class CertificateStates(StatesGroup):
 
 
 def get_cert_file(user_id: int) -> str:
-    path = f"users/{user_id}"
-    os.makedirs(path, exist_ok=True)
-    return f"{path}/certificates.json"
+    os.makedirs("data", exist_ok=True)
+    return "data/certificates.json"
 
 
 def load_certificates(user_id: int = ADMIN_ID) -> dict:

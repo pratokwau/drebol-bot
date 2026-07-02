@@ -95,9 +95,8 @@ class AiStates(StatesGroup):
 # ====================== ХРАНИЛИЩЕ ======================
 
 def get_ai_file(user_id: int) -> str:
-    path = f"users/{user_id}"
-    os.makedirs(path, exist_ok=True)
-    return f"{path}/ai_chats.json"
+    os.makedirs("data", exist_ok=True)
+    return "data/ai_chats.json"
 
 
 def load_chats(user_id: int) -> dict:

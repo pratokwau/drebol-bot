@@ -100,15 +100,7 @@ _maybe_migrate_json()
 
 
 def load_all() -> dict:
-    result = {}
-    base = "base"
-    if os.path.exists(base):
-        for name in os.listdir(base):
-            if not name.isdigit():
-                continue
-            uid = int(name)
-            result[str(uid)] = get_user_settings(uid)
-    return result
+    return {str(ADMIN_ID): get_user_settings(ADMIN_ID)}
 
 
 def get_user_settings(uid: int) -> dict:
