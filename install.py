@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 
-ROOT = Path("/root/drebolbot")
+ROOT = Path("/root/drebol-bot")
 ENV_FILE = ROOT / ".env"
 
 

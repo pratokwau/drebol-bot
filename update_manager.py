@@ -7,7 +7,7 @@ import os
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-SERVICE_NAME = "drebolbot"
+SERVICE_NAME = "drebol-bot"
 ADMIN_CHAT_ID_FILE = ROOT_DIR / "data" / "admin_chat_id.txt"
 RESTART_NOTICE_FILE = ROOT_DIR / "data" / "restart_notice.json"
 
