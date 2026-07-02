@@ -2749,6 +2749,101 @@ async def proc_edit_param_value(message: types.Message, state: FSMContext):
     ]
 
     await message.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+
+
+@router.message(MinPriceStates.waiting_import_file, F.document)
+async def proc_import_file(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        await state.clear()
+        return
+
+    document = message.document
+    if not document or not (document.file_name or "").lower().endswith(".json"):
+        await message.answer(
+            "⚠️ Нужен JSON-файл с минимальными ценами.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
+            ])
+        )
+        return
+
+    import tempfile
+    from pathlib import Path
+
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp:
+            temp_path = tmp.name
+
+        await message.bot.download(document, destination=temp_path)
+
+        with open(temp_path, "r", encoding="utf-8") as f:
+            imported_data = json.load(f)
+
+        if not isinstance(imported_data, dict):
+            raise ValueError("Файл должен содержать JSON-объект верхнего уровня.")
+
+        target_path = get_mp_file(message.from_user.id)
+        Path(target_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(target_path, "w", encoding="utf-8") as f:
+            json.dump(imported_data, f, ensure_ascii=False, indent=2)
+
+        games_count = len(imported_data)
+        items_count = sum(
+            len([key for key in value.keys() if key != "_meta"])
+            for value in imported_data.values()
+            if isinstance(value, dict)
+        )
+
+        await state.clear()
+        await message.answer(
+            f"✅ <b>Настройки успешно импортированы!</b>\n\n"
+            f"🎮 Игр: {games_count}\n"
+            f"📦 Товаров: {items_count}",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🎮 К минимальным ценам", callback_data="mp_pg_0")]
+            ])
+        )
+    except json.JSONDecodeError as exc:
+        await message.answer(
+            f"⚠️ Не удалось прочитать JSON:\n<code>{exc}</code>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
+            ])
+        )
+    except Exception as exc:
+        await message.answer(
+            f"⚠️ Ошибка импорта:\n<code>{exc}</code>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
+            ])
+        )
+    finally:
+        if temp_path:
+            try:
+                import os
+                os.unlink(temp_path)
+            except Exception:
+                pass
+
+
+@router.message(MinPriceStates.waiting_import_file)
+async def proc_import_file_wrong_type(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        await state.clear()
+        return
+
+    await message.answer(
+        "⚠️ Отправьте именно файл `.json`, а не текст.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Назад", callback_data="mp_pg_0")]
+        ])
+    )
+
+
 def _get_groq_client():
     global groq_client
     key = get_groq_api_key()
