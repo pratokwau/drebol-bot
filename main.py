@@ -3,7 +3,6 @@ import sys
 import json
 import os
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -92,7 +91,7 @@ async def check_admin_daily_report_time():
     global _last_admin_report_date
     from handlers.settings import get_user_settings
 
-    now = datetime.now(ZoneInfo("Europe/Moscow"))
+    now = datetime.now()
     settings = get_user_settings(ADMIN_ID)
     if not settings.get("admin_report_notify", True):
         return
@@ -144,7 +143,7 @@ async def main():
         'coalesce': True,
         'max_instances': 1
     }
-    scheduler = AsyncIOScheduler(timezone="Europe/Moscow", job_defaults=job_defaults)
+    scheduler = AsyncIOScheduler(job_defaults=job_defaults)
 
     scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=40)
     scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=55)

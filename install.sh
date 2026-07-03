@@ -16,6 +16,8 @@ cd /root
 
 echo "== Drebolbot: установка =="
 echo "Подготовка системы..."
+echo "Устанавливаю часовой пояс Europe/Moscow..."
+timedatectl set-timezone Europe/Moscow
 
 ensure_apt_packages() {
   local missing=()
