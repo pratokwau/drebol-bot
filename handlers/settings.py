@@ -21,8 +21,6 @@ EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
 DEFAULTS = {
     "restart_notify": False,
     "broadcast_notify": True,
-    "saveprofit_notify": False,
-    "saveprofit_time": "23:59",
     "admin_report_notify": True,
     "admin_report_time": "23:59",
     "tts_voice": "ru-RU-SvetlanaNeural",
@@ -37,7 +35,6 @@ SETTINGS_FILE = "data/user_settings.json"
 
 
 class SettingsStates(StatesGroup):
-    waiting_time = State()
     waiting_admin_report_time = State()
 
 
@@ -129,8 +126,6 @@ def settings_kb(uid: int) -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text=f"🔄 Перезагрузка бота: {_on_off(s['restart_notify'])}", callback_data="stg_toggle_restart_notify")],
         [InlineKeyboardButton(text=f"📢 Рассылки: {_on_off(s['broadcast_notify'])}", callback_data="stg_toggle_broadcast_notify")],
-        [InlineKeyboardButton(text=f"📊 Ежедневный отчёт: {_on_off(s['saveprofit_notify'])}", callback_data="stg_toggle_saveprofit_notify")],
-        [InlineKeyboardButton(text=f"⏰ Время отчёта: {s['saveprofit_time']}", callback_data="stg_set_time")],
     ]
     if int(uid) == int(ADMIN_ID):
         rows.extend([
@@ -173,18 +168,6 @@ async def cb_toggle(call: types.CallbackQuery):
     kb = settings_kb(uid)
     await call.message.edit_reply_markup(reply_markup=kb)
     await call.answer("Включено" if not current else "Выключено")
-
-
-@router.callback_query(F.data == "stg_set_time")
-async def cb_set_time(call: types.CallbackQuery, state: FSMContext):
-    s = get_user_settings(call.from_user.id)
-    await state.set_state(SettingsStates.waiting_time)
-    await call.message.answer(
-        f"⏰ <b>Введите время отчёта</b>\n\nТекущее: <b>{s['saveprofit_time']}</b>\n\nФормат: <code>ЧЧ:ММ</code> (например <code>22:00</code>)" + EXIT_HINT,
-        parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Отмена", callback_data="stg_cancel_time")]])
-    )
-    await call.answer()
 
 
 @router.callback_query(F.data == "stg_set_admin_report_time")
@@ -234,17 +217,6 @@ async def cb_set_voice(call: types.CallbackQuery):
 async def cb_stg_back(call: types.CallbackQuery):
     await call.message.edit_text("⚙️ <b>Настройки уведомлений</b>\n\nНажмите на пункт, чтобы переключить:", parse_mode=ParseMode.HTML, reply_markup=settings_kb(call.from_user.id))
     await call.answer()
-
-
-@router.message(SettingsStates.waiting_time)
-async def proc_set_time(message: types.Message, state: FSMContext):
-    await state.clear()
-    time_str = parse_time_value(message.text)
-    if not time_str:
-        return await message.answer("⚠️ Неверный формат. Введите время как <code>ЧЧ:ММ</code>, например <code>22:00</code>", parse_mode=ParseMode.HTML)
-    update_setting(message.from_user.id, "saveprofit_time", time_str)
-    await state.clear()
-    await message.answer(f"✅ Время отчёта установлено: <b>{time_str}</b>", parse_mode=ParseMode.HTML, reply_markup=settings_kb(message.from_user.id))
 
 
 @router.message(SettingsStates.waiting_admin_report_time)
