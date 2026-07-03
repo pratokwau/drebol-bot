@@ -3,6 +3,7 @@ import sys
 import json
 import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -74,22 +75,6 @@ from handlers.status import router as status_router, log_event, log_downtime, wr
 from middlewares.command_restriction import CommandRestrictionMiddleware
 
 
-async def send_saveprofit_notifications():
-    """Каждую минуту проверяет, кому из пользователей пора слать ежедневный отчёт."""
-    from handlers.settings import load_all, DEFAULTS
-    now = datetime.now().strftime("%H:%M")
-    all_settings = load_all()
-    for uid in [ADMIN_ID]:
-        if int(uid) == int(ADMIN_ID):
-            continue
-        s = {**DEFAULTS, **all_settings.get(str(uid), {})}
-        if s.get("saveprofit_notify") and s.get("saveprofit_time") == now:
-            try:
-                await send_daily_report(bot, uid)
-            except Exception as e:
-                print(f"[SAVEPROFIT NOTIFY] Ошибка для {uid}: {e}")
-
-
 _last_admin_report_date = None
 
 
@@ -107,7 +92,7 @@ async def check_admin_daily_report_time():
     global _last_admin_report_date
     from handlers.settings import get_user_settings
 
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Europe/Moscow"))
     settings = get_user_settings(ADMIN_ID)
     if not settings.get("admin_report_notify", True):
         return
@@ -164,7 +149,6 @@ async def main():
     scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=40)
     scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=55)
     scheduler.add_job(check_admin_daily_report_time, "cron",     minute="*")
-    scheduler.add_job(send_saveprofit_notifications, "cron",     minute="*")
     scheduler.add_job(bot_heartbeat,                 "interval", minutes=1)
     scheduler.start()
 
