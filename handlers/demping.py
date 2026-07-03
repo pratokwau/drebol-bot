@@ -2,8 +2,9 @@
 
 import os
 import json
-import asyncio
 import html as _html
+import subprocess
+import shutil
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -17,11 +18,16 @@ from config import ADMIN_ID
 router = Router()
 
 DEMPING_FILE = "data/demping.json"
+DEMPING_SETTINGS_FILE = "data/demping_settings.json"
+DEFAULT_CARDINAL_TARGET_PATH = "/root/FunPayCardinal/storage/plugins/price_optimizer_lots.json"
+DEFAULT_CARDINAL_RESTART_COMMAND = "systemctl restart funpaycardinal"
 
 
 class DempingStates(StatesGroup):
     waiting_upload = State()
     waiting_cashback = State()
+    waiting_target_path = State()
+    waiting_restart_command = State()
 
 
 # ====================== ХРАНИЛИЩЕ ======================
@@ -40,6 +46,41 @@ def save_demping(data: dict):
     os.makedirs("data", exist_ok=True)
     with open(DEMPING_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_demping_settings() -> dict:
+    if not os.path.exists(DEMPING_SETTINGS_FILE):
+        return {
+            "target_path": DEFAULT_CARDINAL_TARGET_PATH,
+            "restart_command": DEFAULT_CARDINAL_RESTART_COMMAND,
+        }
+    try:
+        with open(DEMPING_SETTINGS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+    return {
+        "target_path": str(data.get("target_path") or DEFAULT_CARDINAL_TARGET_PATH).strip(),
+        "restart_command": str(data.get("restart_command") or DEFAULT_CARDINAL_RESTART_COMMAND).strip(),
+    }
+
+
+def save_demping_settings(data: dict):
+    os.makedirs("data", exist_ok=True)
+    payload = {
+        "target_path": str(data.get("target_path") or DEFAULT_CARDINAL_TARGET_PATH).strip(),
+        "restart_command": str(data.get("restart_command") or DEFAULT_CARDINAL_RESTART_COMMAND).strip(),
+    }
+    with open(DEMPING_SETTINGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def get_cardinal_target_path() -> str:
+    return load_demping_settings()["target_path"]
+
+
+def get_cardinal_restart_command() -> str:
+    return load_demping_settings()["restart_command"]
 
 
 # ====================== ВСПОМОГАТЕЛЬНЫЕ ======================
@@ -152,13 +193,12 @@ def demping_kb() -> InlineKeyboardMarkup:
         buttons.append([InlineKeyboardButton(text="🔗 Автопривязать товары", callback_data="dmp_autolink")])
         buttons.append([InlineKeyboardButton(text="📤 Выгрузить файл демпинга", callback_data="dmp_download")])
         buttons.append([InlineKeyboardButton(text="🚀 Отправить в Cardinal", callback_data="dmp_to_cardinal")])
+    buttons.append([
+        InlineKeyboardButton(text="📁 Путь к файлам", callback_data="dmp_set_path"),
+        InlineKeyboardButton(text="🔄 Команда перезагрузки", callback_data="dmp_set_restart"),
+    ])
     buttons.append([InlineKeyboardButton(text="↩️ FunPay Auto", callback_data="funpay_auto_main")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-
-# Конфигурация для отправки в Cardinal.
-CARDINAL_TARGET_PATH = "/root/FunPayCardinal/storage/plugins/price_optimizer_lots.json"
-CARDINAL_SERVICE_NAME = "funpaycardinal"
 
 
 # ====================== ХЕНДЛЕРЫ ======================
@@ -167,14 +207,99 @@ CARDINAL_SERVICE_NAME = "funpaycardinal"
 async def cb_dmp_menu(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     has_file = os.path.exists(DEMPING_FILE)
+    settings = load_demping_settings()
     text = "📁 <b>Управление файлом демпинга</b>\n\n"
     if has_file:
         demping = load_demping()
-        text += f"<i>Лотов в файле: {len(demping)}</i>"
+        text += f"<i>Лотов в файле: {len(demping)}</i>\n"
     else:
-        text += "<i>Файл ещё не загружен.</i>"
+        text += "<i>Файл ещё не загружен.</i>\n"
+    text += (
+        f"\n<b>Путь:</b> <code>{_html.escape(settings['target_path'])}</code>\n"
+        f"<b>Команда:</b> <code>{_html.escape(settings['restart_command'])}</code>"
+    )
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=demping_kb())
     await call.answer()
+
+
+@router.callback_query(F.data == "dmp_set_path")
+async def cb_dmp_set_path(call: types.CallbackQuery, state: FSMContext):
+    settings = load_demping_settings()
+    await state.set_state(DempingStates.waiting_target_path)
+    await call.message.edit_text(
+        "📁 <b>Путь к файлам Cardinal</b>\n\n"
+        "Отправьте путь к папке или к JSON-файлу.\n"
+        "Если укажете папку, бот сам добавит <code>price_optimizer_lots.json</code>.\n\n"
+        f"Сейчас: <code>{_html.escape(settings['target_path'])}</code>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="dmp_menu")]
+        ])
+    )
+    await call.answer()
+
+
+@router.message(DempingStates.waiting_target_path, F.text)
+async def proc_dmp_target_path(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return await state.clear()
+
+    raw_path = message.text.strip()
+    if not raw_path:
+        return await message.answer("⚠️ Путь не может быть пустым.")
+
+    if raw_path.endswith(".json"):
+        target_path = raw_path
+    else:
+        target_path = os.path.join(raw_path, "price_optimizer_lots.json")
+
+    save_demping_settings({
+        **load_demping_settings(),
+        "target_path": target_path,
+    })
+    await state.clear()
+    await message.answer(
+        f"✅ <b>Путь сохранён</b>\n\n<code>{_html.escape(target_path)}</code>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=demping_kb()
+    )
+
+
+@router.callback_query(F.data == "dmp_set_restart")
+async def cb_dmp_set_restart(call: types.CallbackQuery, state: FSMContext):
+    settings = load_demping_settings()
+    await state.set_state(DempingStates.waiting_restart_command)
+    await call.message.edit_text(
+        "🔄 <b>Команда перезагрузки Cardinal</b>\n\n"
+        "Отправьте команду, которой бот будет перезапускать Cardinal.\n\n"
+        f"Сейчас: <code>{_html.escape(settings['restart_command'])}</code>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="dmp_menu")]
+        ])
+    )
+    await call.answer()
+
+
+@router.message(DempingStates.waiting_restart_command, F.text)
+async def proc_dmp_restart_command(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return await state.clear()
+
+    command = message.text.strip()
+    if not command:
+        return await message.answer("⚠️ Команда не может быть пустой.")
+
+    save_demping_settings({
+        **load_demping_settings(),
+        "restart_command": command,
+    })
+    await state.clear()
+    await message.answer(
+        f"✅ <b>Команда сохранена</b>\n\n<code>{_html.escape(command)}</code>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=demping_kb()
+    )
 
 
 # --- Загрузка файла ---
@@ -239,9 +364,9 @@ async def cb_dmp_to_cardinal(call: types.CallbackQuery):
     """Копирует demping.json в директорию Cardinal и перезапускает его"""
     if not os.path.exists(DEMPING_FILE):
         return await call.answer("Файл не найден", show_alert=True)
-
-    import shutil
-    import subprocess
+    settings = load_demping_settings()
+    target_path = settings["target_path"]
+    restart_command = settings["restart_command"]
 
     await call.message.edit_text(
         "⏳ <b>Отправляю в Cardinal...</b>",
@@ -250,20 +375,15 @@ async def cb_dmp_to_cardinal(call: types.CallbackQuery):
 
     try:
         # 1. Копируем файл
-        target_dir = os.path.dirname(CARDINAL_TARGET_PATH)
-        if not os.path.isdir(target_dir):
-            await call.message.edit_text(
-                f"❌ <b>Директория не найдена:</b>\n<code>{target_dir}</code>",
-                parse_mode=ParseMode.HTML,
-                reply_markup=demping_kb()
-            )
-            return await call.answer()
+        target_dir = os.path.dirname(target_path) or "."
+        os.makedirs(target_dir, exist_ok=True)
 
-        shutil.copy2(DEMPING_FILE, CARDINAL_TARGET_PATH)
+        shutil.copy2(DEMPING_FILE, target_path)
 
         # 2. Перезапускаем Cardinal
         result = subprocess.run(
-            ["systemctl", "restart", CARDINAL_SERVICE_NAME],
+            restart_command,
+            shell=True,
             capture_output=True,
             text=True,
             timeout=30
@@ -272,39 +392,20 @@ async def cb_dmp_to_cardinal(call: types.CallbackQuery):
         if result.returncode != 0:
             err = (result.stderr or result.stdout or "").strip()[:500]
             await call.message.edit_text(
-                f"⚠️ <b>Файл скопирован, но не удалось перезапустить Cardinal:</b>\n\n"
+                f"⚠️ <b>Файл скопирован, но не удалось выполнить команду перезагрузки:</b>\n\n"
                 f"<code>{err or 'unknown error'}</code>",
                 parse_mode=ParseMode.HTML,
                 reply_markup=demping_kb()
             )
             return await call.answer()
 
-        # Проверяем что сервис запустился
-        await asyncio.sleep(2)
-        status = subprocess.run(
-            ["systemctl", "is-active", CARDINAL_SERVICE_NAME],
-            capture_output=True,
-            text=True,
-            timeout=10
+        await call.message.edit_text(
+            f"✅ <b>Файл отправлен в Cardinal!</b>\n\n"
+            f"📁 <code>{_html.escape(target_path)}</code>\n"
+            f"🔄 Команда выполнена:\n<code>{_html.escape(restart_command)}</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=demping_kb()
         )
-        is_active = status.stdout.strip() == "active"
-
-        if is_active:
-            await call.message.edit_text(
-                f"✅ <b>Файл отправлен в Cardinal!</b>\n\n"
-                f"📁 <code>{CARDINAL_TARGET_PATH}</code>\n"
-                f"🔄 Сервис <code>{CARDINAL_SERVICE_NAME}</code> перезапущен",
-                parse_mode=ParseMode.HTML,
-                reply_markup=demping_kb()
-            )
-        else:
-            await call.message.edit_text(
-                f"⚠️ <b>Файл скопирован, но сервис не активен</b>\n\n"
-                f"Статус: <code>{status.stdout.strip()}</code>\n"
-                f"Проверь: <code>journalctl -u {CARDINAL_SERVICE_NAME} -n 30</code>",
-                parse_mode=ParseMode.HTML,
-                reply_markup=demping_kb()
-            )
 
     except subprocess.TimeoutExpired:
         await call.message.edit_text(

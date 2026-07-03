@@ -1069,7 +1069,6 @@ def freshness_text(mp: dict, games: list, results: dict = None) -> str:
 def freshness_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Обновить данные", callback_data="mp_freshness_upd")],
-        [InlineKeyboardButton(text="📁 Управление демпингом", callback_data="dmp_menu")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="mp_pg_0")],
     ])
 
