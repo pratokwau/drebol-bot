@@ -2,7 +2,6 @@ import os
 import json
 import html
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from aiogram import Router, types
 from aiogram.enums import ParseMode
 from handlers.utils import load_profits
@@ -19,7 +18,7 @@ def update_wallet(user_id: int, amount: float):
 
 async def send_daily_report(bot, user_id):
     profits = load_profits(user_id)
-    today = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y")
+    today = datetime.now().strftime("%d.%m.%Y")
     
     fp_orders = [
         p for p in profits 
