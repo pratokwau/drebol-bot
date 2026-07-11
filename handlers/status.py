@@ -462,6 +462,13 @@ def _kb_period(cat: str) -> InlineKeyboardMarkup:
     ])
 
 
+def _kb_custom_period() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="status_bot_custom_back")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_back")],
+    ])
+
+
 def _kb_after_chart(cat: str, since: datetime, until: datetime, has_events: bool) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(
         text="📋 Инциденты" if has_events else "📋 Инцидентов нет",
@@ -510,6 +517,17 @@ async def cb_status_back(call: types.CallbackQuery, state: FSMContext):
         )
 
 
+@router.callback_query(F.data == "status_bot_custom_back")
+async def cb_status_bot_custom_back(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.answer()
+    await call.message.edit_text(
+        "📊 <b>Сбои бота</b>\n\nВыберите период:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=_kb_period("bot")
+    )
+
+
 @router.callback_query(F.data.startswith("status_cat_"))
 async def cb_status_cat(call: types.CallbackQuery):
     cat = call.data[len("status_cat_"):]
@@ -550,7 +568,14 @@ async def cb_status_incidents(call: types.CallbackQuery):
         f"{_format_incidents(events)}"
     )
 
-    await call.message.answer(text, parse_mode=ParseMode.HTML)
+    await call.message.edit_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ К периодам", callback_data=f"status_cat_{cat}")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_back")],
+        ])
+    )
     await call.answer()
 
 
@@ -563,22 +588,15 @@ async def cb_status_period(call: types.CallbackQuery, state: FSMContext):
 
     if period == "custom":
         await state.set_state(StatusPeriod.waiting_bot_custom)
-        await state.update_data(status_cat=cat)
+        await state.update_data(status_cat=cat, status_prompt_chat_id=call.message.chat.id, status_prompt_message_id=call.message.message_id)
         await call.answer()
-        try:
-            await call.message.edit_text(
-                "📅 Введите период в формате:\n"
-                "<code>дд.мм.гггг-дд.мм.гггг</code>\n\n"
-                "Например: <code>01.05.2025-31.05.2025</code>",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception:
-            await call.message.answer(
-                "📅 Введите период в формате:\n"
-                "<code>дд.мм.гггг-дд.мм.гггг</code>\n\n"
-                "Например: <code>01.05.2025-31.05.2025</code>",
-                parse_mode=ParseMode.HTML
-            )
+        await call.message.edit_text(
+            "📅 Введите период в формате:\n"
+            "<code>дд.мм.гггг-дд.мм.гггг</code>\n\n"
+            "Например: <code>01.05.2025-31.05.2025</code>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_kb_custom_period()
+        )
         return
 
     if period == "hour":
@@ -600,6 +618,8 @@ async def handle_custom_period(message: types.Message, state: FSMContext):
     text = message.text.strip()
     data = await state.get_data()
     cat  = data.get("status_cat", "bot")
+    prompt_chat_id = data.get("status_prompt_chat_id")
+    prompt_message_id = data.get("status_prompt_message_id")
     await state.clear()
 
     try:
@@ -609,10 +629,20 @@ async def handle_custom_period(message: types.Message, state: FSMContext):
             hour=23, minute=59, second=59
         )
     except Exception:
-        await message.answer(
-            "❌ Неверный формат. Попробуйте: <code>01.05.2025-31.05.2025</code>",
-            parse_mode=ParseMode.HTML
-        )
+        if prompt_chat_id and prompt_message_id:
+            try:
+                await message.bot.edit_message_text(
+                    chat_id=prompt_chat_id,
+                    message_id=prompt_message_id,
+                    text="❌ Неверный формат. Попробуйте: <code>01.05.2025-31.05.2025</code>",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=_kb_custom_period()
+                )
+            except Exception:
+                await message.answer(
+                    "❌ Неверный формат. Попробуйте: <code>01.05.2025-31.05.2025</code>",
+                    parse_mode=ParseMode.HTML
+                )
         return
 
     period_label = f"{since.strftime('%d.%m.%Y')} — {until.strftime('%d.%m.%Y')}"
