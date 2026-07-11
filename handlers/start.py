@@ -60,8 +60,7 @@ async def cb_start_rassstart(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(ProfitCalc.waiting_for_commission)
     await call.message.edit_text(
         "🧮 <b>Расчёт FunPay</b>\n\n"
-        "💳 Выберите комиссию или введите вручную:\n"
-        "<i>Для выхода введите /cancel</i>",
+        "💳 Выберите комиссию или введите вручную:",
         parse_mode=ParseMode.HTML,
         reply_markup=commissions_keyboard()
     )
@@ -73,8 +72,7 @@ async def cb_start_playerokrass(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(PlayerOkStates.waiting_sale_commission)
     await call.message.edit_text(
         "🧮 <b>Расчёт PlayerOK</b>\n\n"
-        "💳 Комиссия на продажу (%):\n"
-        "<i>Для выхода введите /cancel</i>",
+        "💳 Комиссия на продажу (%):",
         parse_mode=ParseMode.HTML,
         reply_markup=commission_keyboard("sale", "sale_commission")
     )
