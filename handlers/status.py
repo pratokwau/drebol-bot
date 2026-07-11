@@ -8,7 +8,7 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile, InputMediaPhoto
 from aiogram.enums import ParseMode
 from PIL import Image, ImageDraw, ImageFont
 
@@ -481,6 +481,13 @@ def _kb_after_chart(cat: str, since: datetime, until: datetime, has_events: bool
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+async def _edit_status_screen(message: types.Message, text: str, reply_markup: InlineKeyboardMarkup):
+    if message.photo:
+        await message.edit_caption(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+    else:
+        await message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+
 # ====================== КОМАНДА /status ======================
 
 @router.message(Command("status"))
@@ -503,10 +510,10 @@ async def cb_status_back(call: types.CallbackQuery, state: FSMContext):
     await call.answer()
     try:
         from handlers.start import start_menu_kb
-        await call.message.edit_text(
+        await _edit_status_screen(
+            call.message,
             "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
-            parse_mode=ParseMode.HTML,
-            reply_markup=start_menu_kb()
+            start_menu_kb()
         )
     except Exception:
         from handlers.start import start_menu_kb
@@ -521,10 +528,10 @@ async def cb_status_back(call: types.CallbackQuery, state: FSMContext):
 async def cb_status_bot_custom_back(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await call.answer()
-    await call.message.edit_text(
+    await _edit_status_screen(
+        call.message,
         "📊 <b>Сбои бота</b>\n\nВыберите период:",
-        parse_mode=ParseMode.HTML,
-        reply_markup=_kb_period("bot")
+        _kb_period("bot")
     )
 
 
@@ -534,10 +541,10 @@ async def cb_status_cat(call: types.CallbackQuery):
     labels = {"bot": "🤖 Сбои бота"}
     await call.answer()
     try:
-        await call.message.edit_text(
+        await _edit_status_screen(
+            call.message,
             f"📊 <b>{labels.get(cat, cat)}</b>\n\nВыберите период:",
-            parse_mode=ParseMode.HTML,
-            reply_markup=_kb_period(cat)
+            _kb_period(cat)
         )
     except Exception:
         await call.message.answer(
@@ -568,10 +575,10 @@ async def cb_status_incidents(call: types.CallbackQuery):
         f"{_format_incidents(events)}"
     )
 
-    await call.message.edit_text(
+    await _edit_status_screen(
+        call.message,
         text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ К периодам", callback_data=f"status_cat_{cat}")],
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_back")],
         ])
@@ -610,7 +617,7 @@ async def cb_status_period(call: types.CallbackQuery, state: FSMContext):
         period_label = "за последние 30 дней"
 
     await call.answer("⏳ Строю график...")
-    await _send_chart(call.message, cat, since, now, period_label)
+    await _send_chart(call.message.bot, cat, since, now, period_label, chat_id=call.message.chat.id, message_id=call.message.message_id)
 
 
 @router.message(StatusPeriod.waiting_bot_custom)
@@ -646,12 +653,23 @@ async def handle_custom_period(message: types.Message, state: FSMContext):
         return
 
     period_label = f"{since.strftime('%d.%m.%Y')} — {until.strftime('%d.%m.%Y')}"
-    await _send_chart(message, cat, since, until, period_label)
+    if prompt_chat_id and prompt_message_id:
+        await _send_chart(
+            message.bot,
+            cat,
+            since,
+            until,
+            period_label,
+            chat_id=prompt_chat_id,
+            message_id=prompt_message_id,
+        )
+    else:
+        await _send_chart(message, cat, since, until, period_label)
 
 
 # ====================== ОТПРАВКА ГРАФИКА ======================
 
-async def _send_chart(target, cat: str, since: datetime, until: datetime, period_label: str):
+async def _send_chart(target, cat: str, since: datetime, until: datetime, period_label: str, chat_id: int | None = None, message_id: int | None = None):
     events = _effective_events_for(cat, since, until)
     known_since = _monitor_started_at(cat)
     unknown_intervals = _unknown_intervals_for(cat, since, until, known_since)
@@ -690,6 +708,22 @@ async def _send_chart(target, cat: str, since: datetime, until: datetime, period
         caption += "\n⚪ Часть периода неизвестна."
 
     photo = BufferedInputFile(buf.read(), filename="status.png")
-    await target.answer_photo(photo, caption=caption,
-                              parse_mode=ParseMode.HTML,
-                              reply_markup=_kb_after_chart(cat, since, until, bool(events)))
+    if chat_id and message_id:
+        media = InputMediaPhoto(media=photo, caption=caption, parse_mode=ParseMode.HTML)
+        try:
+            await target.edit_message_media(
+                chat_id=chat_id,
+                message_id=message_id,
+                media=media,
+                reply_markup=_kb_after_chart(cat, since, until, bool(events)),
+            )
+            return
+        except Exception:
+            pass
+
+    await target.answer_photo(
+        photo,
+        caption=caption,
+        parse_mode=ParseMode.HTML,
+        reply_markup=_kb_after_chart(cat, since, until, bool(events))
+    )
