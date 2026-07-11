@@ -2,6 +2,7 @@
 import io
 import json
 import os
+from functools import lru_cache
 from datetime import datetime, timedelta
 
 from aiogram import Router, types, F
@@ -446,7 +447,7 @@ def _build_chart(events: list, since: datetime, until: datetime, title: str,
 def _kb_main() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🤖 Сбои бота",  callback_data="status_cat_bot")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="status_back")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="status_back_to_start")],
     ])
 
 
@@ -458,14 +459,14 @@ def _kb_period(cat: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="За месяц", callback_data=f"status_{cat}_month"),
         ],
         [InlineKeyboardButton(text="📅 Свой период", callback_data=f"status_{cat}_custom")],
-        [InlineKeyboardButton(text="⬅️ Назад",        callback_data="status_back")],
+        [InlineKeyboardButton(text="⬅️ Назад",        callback_data="status_root")],
     ])
 
 
 def _kb_custom_period() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="status_bot_custom_back")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_back")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_root")],
     ])
 
 
@@ -476,55 +477,81 @@ def _kb_after_chart(cat: str, since: datetime, until: datetime, has_events: bool
     )]]
     rows.extend([
         [InlineKeyboardButton(text="⬅️ К периодам",  callback_data=f"status_cat_{cat}")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_back")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_root")],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 async def _edit_status_screen(message: types.Message, text: str, reply_markup: InlineKeyboardMarkup):
-    if message.photo:
+    if getattr(message, "content_type", None) == "photo":
         await message.edit_caption(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
     else:
         await message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+
+@lru_cache(maxsize=1)
+def _status_placeholder_bytes() -> bytes:
+    from io import BytesIO
+    from PIL import Image
+
+    image = Image.new("RGB", (1, 1), (255, 255, 255))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+async def show_status_root(target, edit: bool = False):
+    caption = "📊 <b>Мониторинг статуса</b>\n\nВыберите раздел:"
+    photo = BufferedInputFile(_status_placeholder_bytes(), filename="status.png")
+    if isinstance(target, types.CallbackQuery):
+        if edit and getattr(target.message, "content_type", None) == "photo":
+            await target.message.edit_caption(caption, parse_mode=ParseMode.HTML, reply_markup=_kb_main())
+        else:
+            await target.message.answer_photo(photo, caption=caption, parse_mode=ParseMode.HTML, reply_markup=_kb_main())
+        await target.answer()
+    else:
+        await target.answer_photo(photo, caption=caption, parse_mode=ParseMode.HTML, reply_markup=_kb_main())
 
 
 # ====================== КОМАНДА /status ======================
 
 @router.message(Command("status"))
 async def cmd_status(message: types.Message):
-    user_id = message.from_user.id
-
-    
-    await message.answer(
-        "📊 <b>Мониторинг статуса</b>\n\nВыберите раздел:",
-        parse_mode=ParseMode.HTML,
-        reply_markup=_kb_main()
-    )
+    await show_status_root(message)
 
 
 # ====================== CALLBACKS ======================
 
-@router.callback_query(F.data == "status_back")
-async def cb_status_back(call: types.CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "status_back_to_start")
+async def cb_status_back_to_start(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.answer()
     from handlers.start import start_menu_kb
-    await _edit_status_screen(
-        call.message,
-        "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
-        start_menu_kb()
-    )
+    if getattr(call.message, "content_type", None) == "photo":
+        await call.message.edit_caption(
+            "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=start_menu_kb()
+        )
+    else:
+        await call.message.edit_text(
+            "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=start_menu_kb()
+        )
+    await call.answer()
+
+
+@router.callback_query(F.data == "status_root")
+async def cb_status_root(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await show_status_root(call, edit=True)
 
 
 @router.callback_query(F.data == "status_bot_custom_back")
 async def cb_status_bot_custom_back(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
+    await _edit_status_screen(call.message, "📊 <b>Сбои бота</b>\n\nВыберите период:", _kb_period("bot"))
     await call.answer()
-    await _edit_status_screen(
-        call.message,
-        "📊 <b>Сбои бота</b>\n\nВыберите период:",
-        _kb_period("bot")
-    )
 
 
 @router.callback_query(F.data.startswith("status_cat_"))
@@ -565,7 +592,7 @@ async def cb_status_incidents(call: types.CallbackQuery):
         text,
         InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ К периодам", callback_data=f"status_cat_{cat}")],
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_back")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="status_root")],
         ])
     )
     await call.answer()
@@ -582,7 +609,7 @@ async def cb_status_period(call: types.CallbackQuery, state: FSMContext):
         await state.set_state(StatusPeriod.waiting_bot_custom)
         await state.update_data(status_cat=cat, status_prompt_chat_id=call.message.chat.id, status_prompt_message_id=call.message.message_id)
         await call.answer()
-        await call.message.edit_text(
+        await call.message.edit_caption(
             "📅 Введите период в формате:\n"
             "<code>дд.мм.гггг-дд.мм.гггг</code>\n\n"
             "Например: <code>01.05.2025-31.05.2025</code>",
@@ -623,10 +650,10 @@ async def handle_custom_period(message: types.Message, state: FSMContext):
     except Exception:
         if prompt_chat_id and prompt_message_id:
             try:
-                await message.bot.edit_message_text(
+                await message.bot.edit_message_caption(
                     chat_id=prompt_chat_id,
                     message_id=prompt_message_id,
-                    text="❌ Неверный формат. Попробуйте: <code>01.05.2025-31.05.2025</code>",
+                    caption="❌ Неверный формат. Попробуйте: <code>01.05.2025-31.05.2025</code>",
                     parse_mode=ParseMode.HTML,
                     reply_markup=_kb_custom_period()
                 )
