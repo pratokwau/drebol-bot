@@ -120,6 +120,7 @@ async def _check_downtime_on_startup():
 
 async def main():
     dp.message.middleware(CommandRestrictionMiddleware())
+    dp.callback_query.middleware(CommandRestrictionMiddleware())
 
     dp.include_router(cancel_router)
     dp.include_router(settings_router)
