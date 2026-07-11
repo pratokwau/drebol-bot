@@ -15,8 +15,6 @@ from states.states import ProfitCalc
 router = Router()
 
 COMMISSIONS_FILE = "data/commissions.json"
-
-EXIT_HINT = "\n<i>Для выхода введите /cancel</i>"
 DIVIDER = "──────────────────"
 
 
@@ -46,32 +44,43 @@ def commissions_keyboard() -> InlineKeyboardMarkup:
     comm = load_commissions()
     buttons = [InlineKeyboardButton(text=f"{c}%", callback_data=f"commission_{c}") for c in comm]
     rows = [buttons[i:i+3] for i in range(0, len(buttons), 3)]
-    rows.append([InlineKeyboardButton(text="❌ Отмена", callback_data="rassstart_cancel")])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_main")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def cancel_only_kb() -> InlineKeyboardMarkup:
+def input_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="rassstart_cancel")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_commission")]
+    ])
+
+
+def result_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_input")]
     ])
 
 
 @router.message(Command("rassstart"))
 async def rassstart_command(message: types.Message, state: FSMContext):
+    await state.clear()
     await state.set_state(ProfitCalc.waiting_for_commission)
     await message.answer(
         "🧮 <b>Расчёт FunPay</b>\n\n"
-        "💳 Выберите комиссию или введите вручную:"
-        f"{EXIT_HINT}",
+        "💳 Выберите комиссию или введите вручную:",
         parse_mode=ParseMode.HTML,
         reply_markup=commissions_keyboard()
     )
 
 
-@router.callback_query(F.data == "rassstart_cancel")
-async def cb_rassstart_cancel(call: types.CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "rassstart_back_main")
+async def cb_rassstart_back_main(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.message.edit_text("❌ <b>Расчёт отменён.</b>", parse_mode=ParseMode.HTML)
+    from handlers.start import start_menu_kb
+    await call.message.edit_text(
+        "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=start_menu_kb()
+    )
     await call.answer()
 
 
@@ -85,9 +94,21 @@ async def choose_commission(call: types.CallbackQuery, state: FSMContext):
         f"✅ Комиссия: <b>{commission:.2f}%</b>\n\n"
         "Введите закупку и продажу через пробел:\n"
         "Пример: <code>1500 2200</code>"
-        f"{EXIT_HINT}",
+        ,
         parse_mode=ParseMode.HTML,
-        reply_markup=cancel_only_kb()
+        reply_markup=input_keyboard()
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "rassstart_back_commission")
+async def cb_rassstart_back_commission(call: types.CallbackQuery, state: FSMContext):
+    await state.set_state(ProfitCalc.waiting_for_commission)
+    await call.message.edit_text(
+        "🧮 <b>Расчёт FunPay</b>\n\n"
+        "💳 Выберите комиссию или введите вручную:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=commissions_keyboard()
     )
     await call.answer()
 
@@ -112,9 +133,9 @@ async def get_commission(message: types.Message, state: FSMContext):
         f"✅ Комиссия: <b>{commission:.2f}%</b>\n\n"
         "Введите закупку и продажу через пробел:\n"
         "Пример: <code>1500 2200</code>"
-        f"{EXIT_HINT}",
+        ,
         parse_mode=ParseMode.HTML,
-        reply_markup=cancel_only_kb()
+        reply_markup=input_keyboard()
     )
 
 
@@ -150,8 +171,22 @@ async def calc_profit(message: types.Message, state: FSMContext):
         f"💰 Продажа:     <b>{sell_price:,.2f} ₽</b>\n"
         f"🏦 Комиссия:    <b>{commission:.2f}%</b>\n"
         f"{DIVIDER}\n"
-        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>\n"
-        f"{EXIT_HINT}",
+        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>\n",
         parse_mode=ParseMode.HTML,
-        reply_markup=cancel_only_kb()
+        reply_markup=result_keyboard()
     )
+
+
+@router.callback_query(F.data == "rassstart_back_input")
+async def cb_rassstart_back_input(call: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    commission = data.get("commission", 3.0)
+    await state.set_state(ProfitCalc.waiting_for_input)
+    await call.message.edit_text(
+        f"✅ Комиссия: <b>{float(commission):.2f}%</b>\n\n"
+        "Введите закупку и продажу через пробел:\n"
+        "Пример: <code>1500 2200</code>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=input_keyboard()
+    )
+    await call.answer()
