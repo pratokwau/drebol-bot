@@ -446,6 +446,7 @@ def _build_chart(events: list, since: datetime, until: datetime, title: str,
 def _kb_main() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🤖 Сбои бота",  callback_data="status_cat_bot")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="status_back")],
     ])
 
 
@@ -494,16 +495,18 @@ async def cb_status_back(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await call.answer()
     try:
+        from handlers.start import start_menu_kb
         await call.message.edit_text(
-            "📊 <b>Мониторинг статуса</b>\n\nВыберите раздел:",
+            "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
             parse_mode=ParseMode.HTML,
-            reply_markup=_kb_main()
+            reply_markup=start_menu_kb()
         )
     except Exception:
+        from handlers.start import start_menu_kb
         await call.message.answer(
-            "📊 <b>Мониторинг статуса</b>\n\nВыберите раздел:",
+            "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
             parse_mode=ParseMode.HTML,
-            reply_markup=_kb_main()
+            reply_markup=start_menu_kb()
         )
 
 
