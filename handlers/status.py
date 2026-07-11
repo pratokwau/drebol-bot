@@ -508,20 +508,12 @@ async def cmd_status(message: types.Message):
 async def cb_status_back(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await call.answer()
-    try:
-        from handlers.start import start_menu_kb
-        await _edit_status_screen(
-            call.message,
-            "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
-            start_menu_kb()
-        )
-    except Exception:
-        from handlers.start import start_menu_kb
-        await call.message.answer(
-            "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
-            parse_mode=ParseMode.HTML,
-            reply_markup=start_menu_kb()
-        )
+    from handlers.start import start_menu_kb
+    await _edit_status_screen(
+        call.message,
+        "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
+        start_menu_kb()
+    )
 
 
 @router.callback_query(F.data == "status_bot_custom_back")
@@ -540,18 +532,11 @@ async def cb_status_cat(call: types.CallbackQuery):
     cat = call.data[len("status_cat_"):]
     labels = {"bot": "🤖 Сбои бота"}
     await call.answer()
-    try:
-        await _edit_status_screen(
-            call.message,
-            f"📊 <b>{labels.get(cat, cat)}</b>\n\nВыберите период:",
-            _kb_period(cat)
-        )
-    except Exception:
-        await call.message.answer(
-            f"📊 <b>{labels.get(cat, cat)}</b>\n\nВыберите период:",
-            parse_mode=ParseMode.HTML,
-            reply_markup=_kb_period(cat)
-        )
+    await _edit_status_screen(
+        call.message,
+        f"📊 <b>{labels.get(cat, cat)}</b>\n\nВыберите период:",
+        _kb_period(cat)
+    )
 
 
 @router.callback_query(F.data.startswith("status_inc_"))
