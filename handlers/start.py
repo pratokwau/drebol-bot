@@ -12,7 +12,6 @@ from handlers.playerokrass import commission_keyboard
 from handlers.saveprofit import saveprofit_menu_text, saveprofit_menu_keyboard
 from handlers.ai_chat import _ai_is_configured, _ai_not_configured_text, load_chats, chats_list_kb, _start_new_chat
 from handlers.settings import settings_kb
-from handlers.status import _kb_main as status_main_kb
 from handlers.admin import admin_menu
 from update_manager import get_update_status
 from handlers.funpay_admin import show_funpay_auto_menu
@@ -33,7 +32,6 @@ def start_menu_kb() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="⚙️ Настройки", callback_data="start_settings"),
-            InlineKeyboardButton(text="📊 Статус", callback_data="start_status"),
         ],
         [
             InlineKeyboardButton(text="👨🏼‍💻 Админ-панель", callback_data="start_admin"),
@@ -122,17 +120,6 @@ async def cb_start_settings(call: types.CallbackQuery, state: FSMContext):
         "⚙️ <b>Настройки уведомлений</b>\n\nНажмите на пункт, чтобы переключить:",
         parse_mode=ParseMode.HTML,
         reply_markup=settings_kb(call.from_user.id)
-    )
-    await call.answer()
-
-
-@router.callback_query(F.data == "start_status")
-async def cb_start_status(call: types.CallbackQuery, state: FSMContext):
-    await state.clear()
-    await call.message.edit_text(
-        "📊 <b>Мониторинг статуса</b>\n\nВыберите раздел:",
-        parse_mode=ParseMode.HTML,
-        reply_markup=status_main_kb()
     )
     await call.answer()
 
