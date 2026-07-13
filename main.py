@@ -70,7 +70,6 @@ from handlers.settings import router as settings_router
 from handlers.migration import router as migration_router
 from handlers.demping import router as demping_router
 from handlers.certificates import router as certificates_router
-from handlers.status import router as status_router, log_event, log_downtime, write_heartbeat, check_heartbeat_and_log
 from middlewares.command_restriction import CommandRestrictionMiddleware
 
 
@@ -106,18 +105,6 @@ async def check_admin_daily_report_time():
     await send_admin_daily_report()
 
 
-async def bot_heartbeat():
-    """Каждую минуту: проверяет паузу в работе бота, потом обновляет heartbeat."""
-    check_heartbeat_and_log()
-    write_heartbeat()
-
-
-async def _check_downtime_on_startup():
-    """Вызывается сразу при старте — фиксирует даунтайм бота пока сервер лежал."""
-    check_heartbeat_and_log()
-    write_heartbeat()
-
-
 async def main():
     dp.message.middleware(CommandRestrictionMiddleware())
     dp.callback_query.middleware(CommandRestrictionMiddleware())
@@ -137,7 +124,6 @@ async def main():
     dp.include_router(minprice_router)
     dp.include_router(ai_router)
     dp.include_router(ai_settings_router)
-    dp.include_router(status_router)
     dp.include_router(migration_router)
 
     job_defaults = {
@@ -149,7 +135,6 @@ async def main():
     scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=40)
     scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=55)
     scheduler.add_job(check_admin_daily_report_time, "cron",     minute="*")
-    scheduler.add_job(bot_heartbeat,                 "interval", minutes=1)
     scheduler.start()
 
     print("[INFO] Запуск бота...")
