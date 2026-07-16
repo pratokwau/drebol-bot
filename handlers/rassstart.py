@@ -45,18 +45,21 @@ def commissions_keyboard() -> InlineKeyboardMarkup:
     buttons = [InlineKeyboardButton(text=f"{c}%", callback_data=f"commission_{c}") for c in comm]
     rows = [buttons[i:i+3] for i in range(0, len(buttons), 3)]
     rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_main")])
+    rows.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="rassstart_main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def input_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_commission")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_commission")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="rassstart_main_menu")]
     ])
 
 
 def result_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_input")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="rassstart_back_input")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="rassstart_main_menu")]
     ])
 
 
@@ -74,6 +77,18 @@ async def rassstart_command(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "rassstart_back_main")
 async def cb_rassstart_back_main(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    from handlers.start import start_menu_kb
+    await call.message.edit_text(
+        "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=start_menu_kb()
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "rassstart_main_menu")
+async def cb_rassstart_main_menu(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     from handlers.start import start_menu_kb
     await call.message.edit_text(

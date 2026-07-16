@@ -49,24 +49,28 @@ def commission_keyboard(key: str, next_step: str) -> InlineKeyboardMarkup:
     buttons = [InlineKeyboardButton(text=f"{v}%", callback_data=f"{next_step}_{v}") for v in lst]
     rows = [buttons[i:i+3] for i in range(0, len(buttons), 3)]
     rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_main")])
+    rows.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="playerok_main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def withdraw_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_sale")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_sale")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="playerok_main_menu")]
     ])
 
 
 def prices_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_withdraw")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_withdraw")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="playerok_main_menu")]
     ])
 
 
 def result_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_prices")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_prices")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="playerok_main_menu")]
     ])
 
 
@@ -84,6 +88,18 @@ async def cmd_playerokrass(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "playerok_back_main")
 async def cb_playerok_back_main(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.message.edit_text(
+        "🧮 <b>Расчёт PlayerOK</b>\n\n"
+        "💳 Комиссия на продажу (%):",
+        parse_mode=ParseMode.HTML,
+        reply_markup=commission_keyboard("sale", "sale_commission")
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "playerok_main_menu")
+async def cb_playerok_main_menu(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     from handlers.start import start_menu_kb
     await call.message.edit_text(
