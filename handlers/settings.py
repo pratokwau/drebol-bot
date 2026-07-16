@@ -125,7 +125,6 @@ def settings_kb(uid: int) -> InlineKeyboardMarkup:
     voice_label = TTS_VOICES.get(s["tts_voice"], s["tts_voice"])
     rows = [
         [InlineKeyboardButton(text=f"🔄 Перезагрузка бота: {_on_off(s['restart_notify'])}", callback_data="stg_toggle_restart_notify")],
-        [InlineKeyboardButton(text=f"📢 Рассылки: {_on_off(s['broadcast_notify'])}", callback_data="stg_toggle_broadcast_notify")],
     ]
     if int(uid) == int(ADMIN_ID):
         rows.extend([
@@ -133,6 +132,7 @@ def settings_kb(uid: int) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=f"🕛 Время админ-отчёта: {s['admin_report_time']}", callback_data="stg_set_admin_report_time")],
         ])
     rows.append([InlineKeyboardButton(text=f"🎙 Голос ИИ: {voice_label}", callback_data="stg_voice_menu")])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="stg_main_back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -216,6 +216,18 @@ async def cb_set_voice(call: types.CallbackQuery):
 @router.callback_query(F.data == "stg_back")
 async def cb_stg_back(call: types.CallbackQuery):
     await call.message.edit_text("⚙️ <b>Настройки уведомлений</b>\n\nНажмите на пункт, чтобы переключить:", parse_mode=ParseMode.HTML, reply_markup=settings_kb(call.from_user.id))
+    await call.answer()
+
+
+@router.callback_query(F.data == "stg_main_back")
+async def cb_stg_main_back(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    from handlers.start import start_menu_kb
+    await call.message.edit_text(
+        "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=start_menu_kb()
+    )
     await call.answer()
 
 
