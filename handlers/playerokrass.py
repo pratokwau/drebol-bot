@@ -16,7 +16,6 @@ router = Router()
 PLAYEROK_FILE = "data/playerok_commissions.json"
 os.makedirs(os.path.dirname(PLAYEROK_FILE), exist_ok=True)
 
-EXIT_HINT = "\n<i>Для выхода введите /cancel</i>"
 DIVIDER = "──────────────────"
 
 
@@ -49,32 +48,90 @@ def commission_keyboard(key: str, next_step: str) -> InlineKeyboardMarkup:
     lst = load_commissions(key)
     buttons = [InlineKeyboardButton(text=f"{v}%", callback_data=f"{next_step}_{v}") for v in lst]
     rows = [buttons[i:i+3] for i in range(0, len(buttons), 3)]
-    rows.append([InlineKeyboardButton(text="❌ Отмена", callback_data="playerok_cancel")])
+    rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_main")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def cancel_only_kb() -> InlineKeyboardMarkup:
+def withdraw_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="playerok_cancel")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_sale")]
+    ])
+
+
+def prices_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_withdraw")]
+    ])
+
+
+def result_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="playerok_back_prices")]
     ])
 
 
 @router.message(Command("playerokrass"))
 async def cmd_playerokrass(message: types.Message, state: FSMContext):
+    await state.clear()
     await state.set_state(PlayerOkStates.waiting_sale_commission)
     await message.answer(
         "🧮 <b>Расчёт PlayerOK</b>\n\n"
-        "💳 Комиссия на продажу (%):"
-        f"{EXIT_HINT}",
+        "💳 Комиссия на продажу (%):",
         parse_mode=ParseMode.HTML,
         reply_markup=commission_keyboard("sale", "sale_commission")
     )
 
 
-@router.callback_query(F.data == "playerok_cancel")
-async def cb_playerok_cancel(call: types.CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "playerok_back_main")
+async def cb_playerok_back_main(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
-    await call.message.edit_text("❌ <b>Расчёт отменён.</b>", parse_mode=ParseMode.HTML)
+    from handlers.start import start_menu_kb
+    await call.message.edit_text(
+        "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=start_menu_kb()
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "playerok_back_sale")
+async def cb_playerok_back_sale(call: types.CallbackQuery, state: FSMContext):
+    await state.set_state(PlayerOkStates.waiting_sale_commission)
+    await call.message.edit_text(
+        "🧮 <b>Расчёт PlayerOK</b>\n\n"
+        "💳 Комиссия на продажу (%):",
+        parse_mode=ParseMode.HTML,
+        reply_markup=commission_keyboard("sale", "sale_commission")
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "playerok_back_withdraw")
+async def cb_playerok_back_withdraw(call: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    sale_c = float(data.get("sale_commission", 0.0))
+    await state.set_state(PlayerOkStates.waiting_withdraw_commission)
+    await call.message.edit_text(
+        f"✅ Комиссия продажи: <b>{sale_c:.2f}%</b>\n\n"
+        "💳 Комиссия на вывод (%):",
+        parse_mode=ParseMode.HTML,
+        reply_markup=commission_keyboard("withdraw", "withdraw_commission")
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "playerok_back_prices")
+async def cb_playerok_back_prices(call: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    withdraw_c = float(data.get("withdraw_commission", 0.0))
+    await state.set_state(PlayerOkStates.waiting_prices)
+    await call.message.edit_text(
+        f"✅ Комиссия вывода: <b>{withdraw_c:.2f}%</b>\n\n"
+        "Введите закупку и продажу через пробел:\n"
+        "Пример: <code>1500 2000</code>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=withdraw_keyboard()
+    )
     await call.answer()
 
 
@@ -93,8 +150,7 @@ async def cb_sale_commission(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(PlayerOkStates.waiting_withdraw_commission)
     await call.message.edit_text(
         f"✅ Комиссия продажи: <b>{sale_val:.2f}%</b>\n\n"
-        "💳 Комиссия на вывод (%):"
-        f"{EXIT_HINT}",
+        "💳 Комиссия на вывод (%):",
         parse_mode=ParseMode.HTML,
         reply_markup=commission_keyboard("withdraw", "withdraw_commission")
     )
@@ -104,8 +160,6 @@ async def cb_sale_commission(call: types.CallbackQuery, state: FSMContext):
 # SALE COMMISSION — вручную
 @router.message(StateFilter(PlayerOkStates.waiting_sale_commission))
 async def text_sale_commission(message: types.Message, state: FSMContext):
-    await state.clear()
-
     try:
         sale_val = float(message.text.replace(",", "."))
         if sale_val <= 0:
@@ -121,8 +175,7 @@ async def text_sale_commission(message: types.Message, state: FSMContext):
     await state.set_state(PlayerOkStates.waiting_withdraw_commission)
     await message.answer(
         f"✅ Комиссия продажи: <b>{sale_val:.2f}%</b>\n\n"
-        "💳 Комиссия на вывод (%):"
-        f"{EXIT_HINT}",
+        "💳 Комиссия на вывод (%):",
         parse_mode=ParseMode.HTML,
         reply_markup=commission_keyboard("withdraw", "withdraw_commission")
     )
@@ -144,10 +197,9 @@ async def cb_withdraw_commission(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(
         f"✅ Комиссия вывода: <b>{withdraw_val:.2f}%</b>\n\n"
         "Введите закупку и продажу через пробел:\n"
-        "Пример: <code>1500 2000</code>"
-        f"{EXIT_HINT}",
+        "Пример: <code>1500 2000</code>",
         parse_mode=ParseMode.HTML,
-        reply_markup=cancel_only_kb()
+        reply_markup=withdraw_keyboard()
     )
     await call.answer()
 
@@ -155,8 +207,6 @@ async def cb_withdraw_commission(call: types.CallbackQuery, state: FSMContext):
 # WITHDRAW COMMISSION — вручную
 @router.message(StateFilter(PlayerOkStates.waiting_withdraw_commission))
 async def text_withdraw_commission(message: types.Message, state: FSMContext):
-    await state.clear()
-
     try:
         withdraw_val = float(message.text.replace(",", "."))
         if withdraw_val <= 0:
@@ -173,18 +223,15 @@ async def text_withdraw_commission(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ Комиссия вывода: <b>{withdraw_val:.2f}%</b>\n\n"
         "Введите закупку и продажу через пробел:\n"
-        "Пример: <code>1500 2000</code>"
-        f"{EXIT_HINT}",
+        "Пример: <code>1500 2000</code>",
         parse_mode=ParseMode.HTML,
-        reply_markup=cancel_only_kb()
+        reply_markup=withdraw_keyboard()
     )
 
 
 # Ввод цен + расчёт
 @router.message(StateFilter(PlayerOkStates.waiting_prices))
 async def calc_prices(message: types.Message, state: FSMContext):
-    await state.clear()
-
     parts = message.text.replace(",", ".").split()
     if len(parts) != 2:
         return await message.answer(
@@ -219,8 +266,7 @@ async def calc_prices(message: types.Message, state: FSMContext):
         f"➖ Комиссия продажи ({sale_c:.2f}%): <b>{sell_price * sale_c / 100:,.2f} ₽</b>\n"
         f"➖ Комиссия вывода ({withdraw_c:.2f}%):  <b>{after_sale * withdraw_c / 100:,.2f} ₽</b>\n"
         f"{DIVIDER}\n"
-        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>\n"
-        f"{EXIT_HINT}",
+        f"💎 <b>Чистая прибыль: {profit:,.2f} ₽</b>",
         parse_mode=ParseMode.HTML,
-        reply_markup=cancel_only_kb()
+        reply_markup=result_keyboard()
     )
