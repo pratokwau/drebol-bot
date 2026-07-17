@@ -13,7 +13,6 @@ from config import ADMIN_ID
 from base_store import admin_db_path, connect
 
 router = Router()
-EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
 
 
 class AiSettings(StatesGroup):
@@ -59,7 +58,6 @@ def ai_settings_back_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="⬅️ Назад", callback_data="ai_settings_back"),
-            InlineKeyboardButton(text="❌ Отмена", callback_data="ai_settings_cancel"),
         ]
     ])
 
@@ -90,7 +88,7 @@ def _key_prompt_text(key_name: str, current_value: str) -> str:
     return (
         f"🔐 <b>{key_name}</b>\n\n"
         f"Текущий статус: <code>{'set' if current_value else 'empty'}</code>\n\n"
-        f"Введите новый {key_name}.{EXIT_HINT}"
+        f"Введите новый {key_name}."
     )
 
 
@@ -140,21 +138,12 @@ async def cb_ai_settings_back(call: types.CallbackQuery, state: FSMContext):
     await call.answer()
 
 
-@router.callback_query(F.data == "ai_settings_cancel")
-async def cb_ai_settings_cancel(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return
-    await state.clear()
-    await call.message.edit_text(_ai_settings_text(), parse_mode=ParseMode.HTML, reply_markup=ai_settings_menu_kb())
-    await call.answer("Действие отменено")
-
-
 @router.message(AiSettings.waiting_groq, F.text)
 async def ai_settings_groq(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
     text = message.text.strip()
-    if text == "/cancel" or text in {"⬅️ Назад", "назад", "back"}:
+    if text in {"⬅️ Назад", "назад", "back"}:
         await state.clear()
         await message.answer(_ai_settings_text(), parse_mode=ParseMode.HTML, reply_markup=ai_settings_menu_kb())
         return
@@ -169,7 +158,7 @@ async def ai_settings_openrouter(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
     text = message.text.strip()
-    if text == "/cancel" or text in {"⬅️ Назад", "назад", "back"}:
+    if text in {"⬅️ Назад", "назад", "back"}:
         await state.clear()
         await message.answer(_ai_settings_text(), parse_mode=ParseMode.HTML, reply_markup=ai_settings_menu_kb())
         return

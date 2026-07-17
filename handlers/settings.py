@@ -16,7 +16,6 @@ from config import ADMIN_ID
 from base_store import user_db_path, admin_db_path, connect, ensure_dir
 
 router = Router()
-EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
 
 DEFAULTS = {
     "restart_notify": False,
@@ -162,7 +161,6 @@ async def cmd_settings(message: types.Message, state: FSMContext):
 async def cb_toggle(call: types.CallbackQuery):
     uid = call.from_user.id
     key = call.data.replace("stg_toggle_", "")
-    await call.answer("Недоступно", show_alert=True)
     current = is_enabled(uid, key)
     update_setting(uid, key, not current)
     kb = settings_kb(uid)
@@ -175,9 +173,9 @@ async def cb_set_admin_report_time(call: types.CallbackQuery, state: FSMContext)
     s = get_user_settings(call.from_user.id)
     await state.set_state(SettingsStates.waiting_admin_report_time)
     await call.message.answer(
-        f"🕛 <b>Введите время админ-отчёта</b>\n\nТекущее: <b>{s['admin_report_time']}</b>\n\nФормат: <code>ЧЧ:ММ</code> (например <code>23:59</code>)" + EXIT_HINT,
+        f"🕛 <b>Введите время админ-отчёта</b>\n\nТекущее: <b>{s['admin_report_time']}</b>\n\nФормат: <code>ЧЧ:ММ</code> (например <code>23:59</code>)",
         parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Отмена", callback_data="stg_cancel_time")]])
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="stg_cancel_time")]])
     )
     await call.answer()
 
@@ -186,7 +184,7 @@ async def cb_set_admin_report_time(call: types.CallbackQuery, state: FSMContext)
 async def cb_cancel_time(call: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await call.message.delete()
-    await call.answer("Отменено")
+    await call.answer("Назад")
 
 
 @router.callback_query(F.data == "stg_voice_menu")
@@ -197,7 +195,7 @@ async def cb_voice_menu(call: types.CallbackQuery):
     for voice_id, label in TTS_VOICES.items():
         mark = "✅ " if voice_id == current else ""
         buttons.append([InlineKeyboardButton(text=f"{mark}{label}", callback_data=f"stg_voice_{voice_id}")])
-    buttons.append([InlineKeyboardButton(text="❌ Отмена", callback_data="stg_back")])
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="stg_back")])
     await call.message.edit_text("🎙 <b>Выберите голос для озвучки ИИ:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await call.answer()
 
