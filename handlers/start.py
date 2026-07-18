@@ -168,6 +168,18 @@ async def cb_start_funpayauto(call: types.CallbackQuery, state: FSMContext):
     await show_funpay_auto_menu(call)
 
 
+@router.callback_query(F.data == "funpay_auto_back_start")
+async def cb_funpay_auto_back_start(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.message.edit_text(
+        "<b>🪼 Drebol Bot</b>\n\n"
+        "Выберите нужный раздел кнопкой ниже:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=start_menu_kb()
+    )
+    await call.answer()
+
+
 @router.callback_query(F.data == "start_cancel")
 async def cb_start_cancel(call: types.CallbackQuery, state: FSMContext):
     await cmd_cancel(call.message, state)

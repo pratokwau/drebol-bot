@@ -398,6 +398,7 @@ def funpay_auto_kb():
     kb.row(types.InlineKeyboardButton(text="📁 Демпинг Cardinal", callback_data="dmp_menu"))
     kb.row(types.InlineKeyboardButton(text="⚙️ Данные аккаунта", callback_data="fp_settings"))
     kb.row(types.InlineKeyboardButton(text="📝 Незаполненные заказы", callback_data="task_fill_unfilled"))
+    kb.row(types.InlineKeyboardButton(text="⬅️ Назад в главное меню", callback_data="funpay_auto_back_start"))
     return kb.as_markup()
 
 
