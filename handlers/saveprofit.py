@@ -16,12 +16,11 @@ from handlers.utils import load_profits, save_profits, format_date_now as format
 from handlers.wallet import update_wallet
 
 router = Router()
-EXIT_HINT = "\n<i>Для выхода введите /cancel</i>"
 
 
-def cancel_only_kb(callback_data: str = "saveprofit_menu") -> InlineKeyboardMarkup:
+def back_only_kb(callback_data: str = "saveprofit_menu") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Отмена", callback_data=callback_data)]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data=callback_data)]
     ])
 
 
@@ -153,7 +152,7 @@ def pagination_keyboard(page: int, total_pages: int, prefix: str):
     if page < total_pages - 1:
         row.append(InlineKeyboardButton(text="▶️", callback_data=f"{prefix}_page_{page+1}"))
     buttons.append(row)
-    buttons.append([InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")])
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -167,7 +166,7 @@ def stats_keyboard():
             InlineKeyboardButton(text="Месяц", callback_data="stats_month"),
             InlineKeyboardButton(text="Свой период", callback_data="stats_custom"),
         ],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")]
     ])
 
 
@@ -233,10 +232,10 @@ async def cb_save_add_profit(call: types.CallbackQuery, state: FSMContext):
             InlineKeyboardButton(text="FunPay", callback_data="save_type_funpay"),
             InlineKeyboardButton(text="PlayerOK", callback_data="save_type_playerok")
         ],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")]
     ])
 
-    await call.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+    await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
 
 
 # Выбор типа для добавления
@@ -254,7 +253,7 @@ async def cb_save_type(call: types.CallbackQuery, state: FSMContext):
             "Введите закуп и продажу через пробел.\n\n"
             "Пример: <code>100 200</code>"
         )
-        await call.message.answer(text + EXIT_HINT, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+        await call.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
         await state.set_state(SaveProfitStates.waiting_funpay_prices)
     else:
         text = (
@@ -262,7 +261,7 @@ async def cb_save_type(call: types.CallbackQuery, state: FSMContext):
             "━━━━━━━━━━━━━━\n"
             "Введите комиссию на продажу (%):"
         )
-        await call.message.answer(text + EXIT_HINT, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+        await call.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
         await state.set_state(SaveProfitStates.waiting_sale_c)
 
 
@@ -323,10 +322,9 @@ async def text_save_sale_c(message: types.Message, state: FSMContext):
     text = (
         f"✅ <b>Комиссия продажи: {sale_c}%</b>\n\n"
         "Введите комиссию на вывод (%):"
-        f"{EXIT_HINT}"
     )
 
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
     await state.set_state(SaveProfitStates.waiting_withdraw_c)
 
 
@@ -348,10 +346,9 @@ async def text_save_withdraw_c(message: types.Message, state: FSMContext):
         f"✅ <b>Комиссия вывода: {withdraw_c}%</b>\n\n"
         "Введите цену товара и цену продажи через пробел:\n"
         "<code>пример: 1500 2000</code>"
-        f"{EXIT_HINT}"
     )
 
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
     await state.set_state(SaveProfitStates.waiting_playerok_prices)
 
 
@@ -413,12 +410,12 @@ async def cb_save_edit_profit(call: types.CallbackQuery, state: FSMContext):
 
     keyboard = pagination_keyboard(0, _total_pages(len(profits)), "edit")
 
-    await call.message.answer(
-        f"{text}\n<i>Отправьте номер записи для редактирования.</i>{EXIT_HINT}",
+    await call.message.edit_text(
+        f"{text}\n<i>Отправьте номер записи для редактирования.</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             *keyboard.inline_keyboard[:-1],
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")]
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")]
         ])
     )
     await state.set_state(SaveProfitStates.choose_edit)
@@ -437,11 +434,11 @@ async def cb_edit_page(call: types.CallbackQuery, state: FSMContext):
     keyboard = pagination_keyboard(page, _total_pages(len(profits)), "edit")
 
     await call.message.edit_text(
-        f"{text}\n<i>Отправьте номер записи для редактирования.</i>{EXIT_HINT}",
+        f"{text}\n<i>Отправьте номер записи для редактирования.</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             *keyboard.inline_keyboard[:-1],
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")]
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")]
         ])
     )
 
@@ -471,7 +468,7 @@ async def process_choose_edit(message: types.Message, state: FSMContext):
                         InlineKeyboardButton(text="FunPay", callback_data="edit_type_funpay"),
                         InlineKeyboardButton(text="PlayerOK", callback_data="edit_type_playerok")
                     ],
-                    [InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")]
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")]
                 ])
                 await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
                 await state.set_state(SaveProfitStates.edit_choose_type)
@@ -502,17 +499,15 @@ async def cb_edit_type(call: types.CallbackQuery, state: FSMContext):
             f"➕ <b>FunPay (редактирование записи №{display_num})</b>\n\n"
             "Введите цену товара и цену продажи через пробел:\n"
             "<code>пример: 100 200</code>"
-            f"{EXIT_HINT}"
         )
-        await call.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+        await call.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
         await state.set_state(SaveProfitStates.edit_waiting_funpay_prices)
     else:
         text = (
             f"➕ <b>PlayerOK (редактирование записи №{display_num})</b>\n\n"
             "Введите комиссию на продажу (%):"
-            f"{EXIT_HINT}"
         )
-        await call.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+        await call.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
         await state.set_state(SaveProfitStates.edit_waiting_sale_c)
 
 
@@ -577,10 +572,9 @@ async def text_edit_sale_c(message: types.Message, state: FSMContext):
     text = (
         f"✅ <b>Комиссия продажи для записи №{display_num}: {sale_c}%</b>\n\n"
         "♟️ Введите комиссию на вывод (%):"
-        f"{EXIT_HINT}"
     )
 
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
     await state.set_state(SaveProfitStates.edit_waiting_withdraw_c)
 
 
@@ -604,10 +598,9 @@ async def text_edit_withdraw_c(message: types.Message, state: FSMContext):
         f"✅ <b>Комиссия вывода для записи №{display_num}: {withdraw_c}%</b>\n\n"
         "♟️ Введите цену товара и цену продажи через пробел:\n"
         "<code>пример: 1500 2000</code>"
-        f"{EXIT_HINT}"
     )
 
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb())
     await state.set_state(SaveProfitStates.edit_waiting_playerok_prices)
 
 
@@ -670,11 +663,11 @@ async def cb_save_delete_profit(call: types.CallbackQuery, state: FSMContext):
     keyboard = pagination_keyboard(0, total_pages, "delete")
     
     await call.message.edit_text(
-        f"{text}\n<i>Отправьте номер записи для удаления.</i>{EXIT_HINT}", 
+        f"{text}\n<i>Отправьте номер записи для удаления.</i>", 
         parse_mode=ParseMode.HTML, 
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             *keyboard.inline_keyboard[:-1],
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")]
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")]
         ])
     )
     await state.set_state(SaveProfitStates.choose_delete)
@@ -729,11 +722,11 @@ async def cb_delete_page(call: types.CallbackQuery, state: FSMContext):
     keyboard = pagination_keyboard(page, _total_pages(len(profits)), "delete")
 
     await call.message.edit_text(
-        f"{text}\n<i>Отправьте номер записи для удаления.</i>{EXIT_HINT}",
+        f"{text}\n<i>Отправьте номер записи для удаления.</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             *keyboard.inline_keyboard[:-1],
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="saveprofit_menu")]
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="saveprofit_menu")]
         ])
     )
 
@@ -813,9 +806,8 @@ async def cb_stats_period(call: types.CallbackQuery, state: FSMContext):
             "━━━━━━━━━━━━━━\n"
             "Введите даты в формате ДД.ММ.ГГГГ по ДД.ММ.ГГГГ:\n"
             "<code>пример: 01.01.2026 по 31.01.2026</code>"
-            f"{EXIT_HINT}"
         )
-        await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+        await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb("save_stats"))
         await state.set_state(ProfitStatsStates.waiting_custom_period)
         return
 
@@ -870,5 +862,5 @@ async def process_custom_period(message: types.Message, state: FSMContext):
         f"💰 Чистая прибыль: <b>{total:.2f} ₽</b>"
     )
 
-    await message.answer(text + EXIT_HINT, parse_mode=ParseMode.HTML, reply_markup=cancel_only_kb())
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_only_kb("save_stats"))
     await state.clear()
