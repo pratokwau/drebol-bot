@@ -22,7 +22,6 @@ from handlers.ai_runtime import get_groq_api_key, get_openrouter_api_key
 router = Router()
 groq_client = None
 openrouter_client = None
-EXIT_HINT = "\n\n<i>Для выхода введите /cancel</i>"
 
 
 def _get_groq_client():
@@ -58,6 +57,12 @@ def _ai_not_configured_text() -> str:
         "Администратор ещё не указал ключ для AI.\n"
         "Попробуйте позже."
     )
+
+
+def ai_not_configured_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="ai_back_start")]
+    ])
 
 
 def _ai_is_configured() -> bool:
@@ -135,6 +140,7 @@ def chats_list_kb(chats: dict) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="➕ Новый чат", callback_data="ai_new"),
         InlineKeyboardButton(text="🗑 Удалить", callback_data="ai_delmode"),
     ])
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="ai_back_start")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -158,7 +164,7 @@ def delete_chats_kb(chats: dict) -> InlineKeyboardMarkup:
 def chat_actions_kb(chat_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔊 Озвучить", callback_data=f"ai_tts_{chat_id}")],
-        [InlineKeyboardButton(text="📋 К списку чатов", callback_data="ai_list")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="ai_list")],
     ])
 
 
@@ -167,7 +173,7 @@ def chat_actions_kb(chat_id: str) -> InlineKeyboardMarkup:
 @router.message(Command("ai"))
 async def cmd_ai(message: types.Message, state: FSMContext):
     if not _ai_is_configured():
-        await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
+        await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML, reply_markup=ai_not_configured_kb())
         return
 
     await state.clear()
@@ -205,14 +211,14 @@ async def _start_new_chat(source, state: FSMContext, user_id: int, is_call: bool
 
     text = (
         "🤖 <b>Новый чат с AI</b>\n\n"
-        "Задайте любой вопрос." + EXIT_HINT
+        "Задайте любой вопрос."
     )
 
     if is_call:
-        await source.message.edit_text(text, parse_mode=ParseMode.HTML)
+        await source.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=chat_actions_kb(chat_id))
         await source.answer()
     else:
-        await source.answer(text, parse_mode=ParseMode.HTML)
+        await source.answer(text, parse_mode=ParseMode.HTML, reply_markup=chat_actions_kb(chat_id))
 
 
 @router.callback_query(
@@ -291,7 +297,7 @@ async def cb_ai(call: types.CallbackQuery, state: FSMContext):
         await call.message.edit_text(
             f"💬 <b>{chat.get('name', 'Чат')}</b>\n\n"
             f"{preview}"
-            f"Продолжайте общение.{EXIT_HINT}",
+            f"Продолжайте общение.",
             parse_mode=ParseMode.HTML,
             reply_markup=chat_actions_kb(chat_id)
         )
@@ -386,14 +392,14 @@ async def _send_as_voice(message: types.Message, text: str):
         buf.seek(0)
         await message.answer_voice(BufferedInputFile(buf.read(), filename="voice.mp3"))
     except Exception as e:
-        await message.answer(f"🤖 {text}{EXIT_HINT}")
+        await message.answer(f"🤖 {text}")
 
 
 async def _process_ai_message(message: types.Message, state: FSMContext, user_text: str):
     """Общая логика обработки запроса к AI (текст или голос)"""
     if not _ai_is_configured():
         await state.clear()
-        await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
+        await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML, reply_markup=ai_not_configured_kb())
         return
 
     user_id = message.from_user.id
@@ -509,26 +515,24 @@ async def _process_ai_message(message: types.Message, state: FSMContext, user_te
         await _send_as_voice(message, ai_reply)
     else:
         await message.answer(
-            f"🤖 {ai_reply}{EXIT_HINT}",
+            f"🤖 {ai_reply}",
             reply_markup=chat_actions_kb(chat_id)
         )
 
 
 @router.message(AiStates.waiting_input, F.text)
 async def proc_ai_input(message: types.Message, state: FSMContext):
-    return await state.clear()
     if not _ai_is_configured():
         await state.clear()
-        return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
+        return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML, reply_markup=ai_not_configured_kb())
     await _process_ai_message(message, state, message.text.strip())
 
 
 @router.message(AiStates.waiting_input, F.voice)
 async def proc_ai_voice(message: types.Message, state: FSMContext):
-    return await state.clear()
     if not _ai_is_configured():
         await state.clear()
-        return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
+        return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML, reply_markup=ai_not_configured_kb())
 
     thinking_msg = await message.answer("🎙 <i>Распознаю голосовое...</i>", parse_mode=ParseMode.HTML)
     try:
@@ -569,10 +573,9 @@ async def proc_ai_voice(message: types.Message, state: FSMContext):
 
 @router.message(AiStates.waiting_input, F.photo)
 async def proc_ai_photo(message: types.Message, state: FSMContext):
-    return await state.clear()
     if not _ai_is_configured():
         await state.clear()
-        return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
+        return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML, reply_markup=ai_not_configured_kb())
 
     thinking_msg = await message.answer("🖼 <i>Анализирую фото...</i>", parse_mode=ParseMode.HTML)
     try:
@@ -615,7 +618,7 @@ async def proc_ai_photo(message: types.Message, state: FSMContext):
         chat_id = state_data.get("current_chat_id")
 
         await message.answer(
-            f"🤖 {ai_reply}{EXIT_HINT}",
+            f"🤖 {ai_reply}",
             reply_markup=chat_actions_kb(chat_id) if chat_id else None
         )
 

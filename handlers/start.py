@@ -10,7 +10,7 @@ from states.playerokrass_states import PlayerOkStates
 from handlers.rassstart import commissions_keyboard
 from handlers.playerokrass import commission_keyboard
 from handlers.saveprofit import saveprofit_menu_text, saveprofit_menu_keyboard
-from handlers.ai_chat import _ai_is_configured, _ai_not_configured_text, load_chats, chats_list_kb, _start_new_chat
+from handlers.ai_chat import _ai_is_configured, _ai_not_configured_text, ai_not_configured_kb, load_chats, chats_list_kb, _start_new_chat
 from handlers.settings import settings_kb
 from handlers.admin import admin_menu
 from update_manager import get_update_status
@@ -103,7 +103,7 @@ async def cb_saveprofit_main_menu(call: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "start_ai")
 async def cb_start_ai(call: types.CallbackQuery, state: FSMContext):
     if not _ai_is_configured():
-        await call.message.edit_text(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
+        await call.message.edit_text(_ai_not_configured_text(), parse_mode=ParseMode.HTML, reply_markup=ai_not_configured_kb())
         await call.answer()
         return
 
@@ -121,6 +121,18 @@ async def cb_start_ai(call: types.CallbackQuery, state: FSMContext):
         "🤖 <b>AI Ассистент</b>\n\nВыберите чат или создайте новый:",
         parse_mode=ParseMode.HTML,
         reply_markup=chats_list_kb(chats)
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "ai_back_start")
+async def cb_ai_back_start(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.message.edit_text(
+        "<b>🪼 Drebol Bot</b>\n\n"
+        "Выберите нужный раздел кнопкой ниже:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=start_menu_kb()
     )
     await call.answer()
 
