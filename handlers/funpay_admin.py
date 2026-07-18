@@ -516,15 +516,7 @@ async def view_sales(call: types.CallbackQuery):
 
 
 # --- ДЕТАЛИ ЗАКАЗА ---
-@router.callback_query(F.data.startswith("fpdet_"))
-async def order_info(call: types.CallbackQuery, state: FSMContext):
-
-    data = call.data.split("_")
-    s_id = data[1]
-    api_price = clean_price(data[2])
-    source_page = int(data[3]) if len(data) > 3 and data[3].isdigit() else 0
-    await state.update_data(last_fp_sales_page=source_page)
-
+async def _build_order_card(s_id: str, api_price: str, source_page: int, state: FSMContext) -> tuple[str, types.InlineKeyboardMarkup]:
     gk, ua = db.get_config()
     cost = db.get_prime_cost(s_id)
 
@@ -596,11 +588,23 @@ async def order_info(call: types.CallbackQuery, state: FSMContext):
             kb.row(types.InlineKeyboardButton(text="💸 Ввести закуп", callback_data=f"setc_{s_id}_{final_price}"))
         else:
             kb.row(types.InlineKeyboardButton(text="✏️ Изменить закуп", callback_data=f"setc_{s_id}_{final_price}"))
-        kb.row(types.InlineKeyboardButton(text="✏️ Изменить цену продажи", callback_data=f"editsell_{s_id}"))
+        kb.row(types.InlineKeyboardButton(text="✏️ Изменить цену продажи", callback_data=f"editsell_{s_id}_{final_price}"))
 
     kb.row(types.InlineKeyboardButton(text="⬅️ Обратно к заказам", callback_data=f"fp_sales_{source_page}"))
 
-    await call.message.answer(text, reply_markup=kb.as_markup(), parse_mode=ParseMode.HTML)
+    return text, kb.as_markup()
+
+
+@router.callback_query(F.data.startswith("fpdet_"))
+async def order_info(call: types.CallbackQuery, state: FSMContext):
+    data = call.data.split("_")
+    s_id = data[1]
+    api_price = clean_price(data[2])
+    source_page = int(data[3]) if len(data) > 3 and data[3].isdigit() else 0
+    await state.update_data(last_fp_sales_page=source_page)
+
+    text, kb = await _build_order_card(s_id, api_price, source_page, state)
+    await call.message.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
     await call.answer()
 
 
@@ -708,7 +712,7 @@ async def process_order_search(message: types.Message, state: FSMContext):
             kb.row(types.InlineKeyboardButton(text="💸 Ввести закуп", callback_data=f"setc_{s_id}_{final_price}"))
         else:
             kb.row(types.InlineKeyboardButton(text="✏️ Изменить закуп", callback_data=f"setc_{s_id}_{final_price}"))
-        kb.row(types.InlineKeyboardButton(text="✏️ Изменить цену продажи", callback_data=f"editsell_{s_id}"))
+        kb.row(types.InlineKeyboardButton(text="✏️ Изменить цену продажи", callback_data=f"editsell_{s_id}_{final_price}"))
 
     kb.row(types.InlineKeyboardButton(text="⬅️ Обратно к заказам", callback_data=f"fp_sales_{source_page}"))
     await progress.edit_text(text, reply_markup=kb.as_markup(), parse_mode=ParseMode.HTML)
@@ -771,14 +775,21 @@ async def process_ua(message: types.Message, state: FSMContext):
 # === ЛОГИКА ИЗМЕНЕНИЯ ЦЕНЫ ПРОДАЖИ ===
 @router.callback_query(F.data.startswith("editsell_"))
 async def start_edit_sell(call: types.CallbackQuery, state: FSMContext):
-        
-    s_id = call.data.split("_")[1]
-    await state.update_data(edit_order_id=s_id)
-    
+
+    data = call.data.split("_")
+    s_id = data[1]
+    final_price = data[2] if len(data) > 2 else "0"
+    await state.update_data(
+        edit_order_id=s_id,
+        edit_price=final_price,
+        edit_message_id=call.message.message_id,
+        edit_chat_id=call.message.chat.id,
+    )
+
     kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="❌ Отмена", callback_data="delete_msg"))
-    
-    await call.message.answer(
+    kb.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"sell_back_{s_id}_{final_price}"))
+
+    await call.message.edit_text(
         f"✏️ <b>Исправление цены для заказа #{s_id}</b>\n\n"
         f"Библиотека API отдала кривую цену.\n"
         f"Пожалуйста, отправьте <b>правильную цену продажи</b> в чат (например: <code>10348.05</code>):",
@@ -789,41 +800,65 @@ async def start_edit_sell(call: types.CallbackQuery, state: FSMContext):
     await call.answer()
 
 
+@router.callback_query(F.data.startswith("sell_back_"))
+async def sell_back(call: types.CallbackQuery, state: FSMContext):
+    data = call.data.split("_")
+    s_id = data[2]
+    final_price = data[3] if len(data) > 3 else "0"
+    state_data = await state.get_data()
+    source_page = state_data.get("last_fp_sales_page", 0)
+
+    text, kb = await _build_order_card(s_id, final_price, source_page, state)
+    await call.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    await state.clear()
+    await call.answer()
+
+
 @router.message(FPAdminStates.wait_sell_price)
 async def process_edit_sell(message: types.Message, state: FSMContext):
     if not is_funpay_admin(message.from_user.id):
         return await state.clear()
-        
+
     try:
         val_str = message.text.replace(",", ".").replace(" ", "").replace("\xa0", "")
         val = float(val_str)
     except ValueError:
         return await message.answer("⚠️ Пожалуйста, отправьте число (можно с точкой)!")
-        
+
     data = await state.get_data()
     s_id = data.get('edit_order_id')
     if not s_id:
         await state.clear()
         return await message.answer("Ошибка: ID заказа потерян.")
-        
+
     # Сохраняем кастомную цену продажи в память стэйта
     custom_prices = data.get("custom_sell_prices", {})
     custom_prices[s_id] = val
     await state.update_data(custom_sell_prices=custom_prices)
-    
-    # Очищаем состояние
-    await state.set_state(None)
-    
-    kb = InlineKeyboardBuilder()
-    sales_page = data.get("last_fp_sales_page", 0)
-    kb.row(types.InlineKeyboardButton(text=f"➡️ Вернуться к заказу #{s_id}", callback_data=f"fpdet_{s_id}_{val}_{sales_page}"))
-    
-    await message.answer(
-        f"✅ <b>Цена продажи успешно обновлена на:</b> {val} ₽\n\n"
-        f"Нажмите кнопку ниже, чтобы продолжить.",
-        reply_markup=kb.as_markup(),
-        parse_mode=ParseMode.HTML
-    )
+
+    source_page = data.get("last_fp_sales_page", 0)
+    edit_msg_id = data.get('edit_message_id')
+    edit_chat_id = data.get('edit_chat_id')
+
+    if edit_msg_id and edit_chat_id:
+        try:
+            text, kb = await _build_order_card(s_id, str(val), source_page, state)
+            await message.bot.edit_message_text(
+                text,
+                chat_id=edit_chat_id,
+                message_id=edit_msg_id,
+                reply_markup=kb,
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
+
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    await state.clear()
 
 
 # --- АВТО-ЗАКУП ---
@@ -870,15 +905,33 @@ async def start_cost(call: types.CallbackQuery, state: FSMContext):
 
     data = call.data.split("_")
     s_id, price = data[1], data[2]
-    # Сохраняем message_id заказа чтобы потом удалить
     await state.update_data(
         order_id=s_id,
         price=price,
         order_message_id=call.message.message_id,
         order_chat_id=call.message.chat.id
     )
-    await call.message.answer(f"Введите ЗАКУП (себестоимость) для заказа #{s_id}:")
+    kb = InlineKeyboardBuilder()
+    kb.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"cost_back_{s_id}_{price}"))
+    await call.message.edit_text(
+        f"Введите ЗАКУП (себестоимость) для заказа #{s_id}:",
+        reply_markup=kb.as_markup()
+    )
     await state.set_state(FPAdminStates.wait_cost)
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("cost_back_"))
+async def cost_back(call: types.CallbackQuery, state: FSMContext):
+    data = call.data.split("_")
+    s_id = data[2]
+    price = data[3] if len(data) > 3 else "0"
+    state_data = await state.get_data()
+    source_page = state_data.get("last_fp_sales_page", 0)
+
+    text, kb = await _build_order_card(s_id, price, source_page, state)
+    await call.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    await state.clear()
     await call.answer()
 
 
@@ -914,19 +967,25 @@ async def process_cost(message: types.Message, state: FSMContext):
         if existing_idx is not None:
             new_entry["date"] = profits[existing_idx].get("date", format_date_now())
             profits[existing_idx] = new_entry
-            result_text = f"✏️ <b>Заказ #{order_id} обновлён!</b>\nПрибыль: <b>{profit:.2f} ₽</b>"
         else:
             profits.append(new_entry)
-            result_text = f"✅ <b>Заказ #{order_id} сохранён!</b>\nПрибыль: <b>{profit:.2f} ₽</b>"
 
         save_profits(message.from_user.id, profits)
 
-        # Удаляем оригинальное сообщение с заказом и сообщение пользователя
+        # Редактируем исходное сообщение с заказом
         order_msg_id = data.get('order_message_id')
         order_chat_id = data.get('order_chat_id')
+        source_page = data.get("last_fp_sales_page", 0)
         if order_msg_id and order_chat_id:
             try:
-                await message.bot.delete_message(order_chat_id, order_msg_id)
+                text, kb = await _build_order_card(order_id, str(sell_price), source_page, state)
+                await message.bot.edit_message_text(
+                    text,
+                    chat_id=order_chat_id,
+                    message_id=order_msg_id,
+                    reply_markup=kb,
+                    parse_mode=ParseMode.HTML
+                )
             except Exception:
                 pass
         try:
@@ -934,7 +993,6 @@ async def process_cost(message: types.Message, state: FSMContext):
         except Exception:
             pass
 
-        await message.answer(result_text, parse_mode=ParseMode.HTML)
         await state.clear()
     except ValueError:
         await message.answer("⚠️ Введите число!")

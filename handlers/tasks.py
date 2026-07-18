@@ -419,7 +419,7 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
             kb.row(types.InlineKeyboardButton(text="💸 Вручную", callback_data=f"setc_{s_id}_{price}"))
             
             # ДОБАВЛЕННАЯ КНОПКА ИЗМЕНЕНИЯ ЦЕНЫ ПРОДАЖИ
-            kb.row(types.InlineKeyboardButton(text="✏️ Изменить цену продажи", callback_data=f"editsell_{s_id}"))
+            kb.row(types.InlineKeyboardButton(text="✏️ Изменить цену продажи", callback_data=f"editsell_{s_id}_{price}"))
             
             kb.row(types.InlineKeyboardButton(text="🗑 Закрыть", callback_data="delete_msg"))
 
