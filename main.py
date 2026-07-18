@@ -104,6 +104,10 @@ async def check_admin_daily_report_time():
     await send_admin_daily_report()
 
 
+async def _check_downtime_on_startup():
+    return None
+
+
 async def main():
     dp.message.middleware(CommandRestrictionMiddleware())
     dp.callback_query.middleware(CommandRestrictionMiddleware())
@@ -158,7 +162,9 @@ async def main():
         from handlers.settings import is_enabled
         # Сразу при старте фиксируем даунтайм бота
         await _check_downtime_on_startup()
-        for uid in [ADMIN_ID]:
+
+        restart_targets = [ADMIN_ID]
+        for uid in restart_targets:
             if not is_enabled(uid, "restart_notify"):
                 continue
             if _is_muted(uid):
@@ -172,26 +178,23 @@ async def main():
                     parse_mode="HTML",
                     reply_markup=_restart_mute_kb()
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[RESTART NOTICE] Не удалось отправить уведомление {uid}: {e}")
     await setup_bot_commands()
 
     async def post_start_notifications():
-        try:
-            await notify_restart()
-        finally:
-            notice = load_restart_notice()
-            if notice:
-                try:
-                    await bot.send_message(
-                        int(notice.get("chat_id") or ADMIN_ID),
-                        notice.get("text") or "✅ <b>Бот успешно перезапустился.</b>",
-                        parse_mode="HTML"
-                    )
-                except Exception:
-                    pass
-                finally:
-                    clear_restart_notice()
+        notice = load_restart_notice()
+        if notice:
+            try:
+                chat_id = int(notice.get("chat_id") or ADMIN_ID)
+                text = notice.get("text") or "✅ <b>Бот успешно перезапустился.</b>"
+                await bot.send_message(chat_id, text, parse_mode="HTML")
+            except Exception as e:
+                print(f"[RESTART NOTICE] Не удалось отправить сообщение о перезапуске: {e}")
+            finally:
+                clear_restart_notice()
+
+        await notify_restart()
 
     asyncio.create_task(post_start_notifications())
 
