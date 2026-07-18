@@ -53,7 +53,6 @@ def _restart_mute_kb() -> InlineKeyboardMarkup:
     ]])
 
 
-from handlers.cancel import router as cancel_router
 from handlers.start import router as start_router
 from handlers.admin import router as admin_router
 from handlers.rassstart import router as rass_router
@@ -112,7 +111,6 @@ async def main():
     dp.message.middleware(CommandRestrictionMiddleware())
     dp.callback_query.middleware(CommandRestrictionMiddleware())
 
-    dp.include_router(cancel_router)
     dp.include_router(settings_router)
     dp.include_router(demping_router)
     dp.include_router(certificates_router)
@@ -144,7 +142,6 @@ async def main():
     async def setup_bot_commands():
         await bot.set_my_commands([
             BotCommand(command="start", description="Главное меню"),
-            BotCommand(command="cancel", description="Выход из действия"),
         ])
 
     @dp.callback_query(F.data.startswith("restart_mute_"))
