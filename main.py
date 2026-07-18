@@ -67,7 +67,6 @@ from handlers.ai_chat import router as ai_router
 from handlers.ai_settings import router as ai_settings_router
 from update_manager import get_update_status, load_restart_notice, clear_restart_notice
 from handlers.settings import router as settings_router
-from handlers.migration import router as migration_router
 from handlers.demping import router as demping_router
 from handlers.certificates import router as certificates_router
 from middlewares.command_restriction import CommandRestrictionMiddleware
@@ -124,7 +123,6 @@ async def main():
     dp.include_router(minprice_router)
     dp.include_router(ai_router)
     dp.include_router(ai_settings_router)
-    dp.include_router(migration_router)
 
     job_defaults = {
         'coalesce': True,
