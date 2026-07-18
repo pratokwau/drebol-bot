@@ -84,6 +84,7 @@ def saveprofit_menu_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="✏️ Редактировать", callback_data="save_edit_profit"),
             InlineKeyboardButton(text="🗑 Удалить", callback_data="save_delete_profit"),
         ],
+        [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="saveprofit_main_menu")],
     ])
 
 

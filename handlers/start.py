@@ -88,6 +88,18 @@ async def cb_start_saveprofit(call: types.CallbackQuery, state: FSMContext):
     await call.answer()
 
 
+@router.callback_query(F.data == "saveprofit_main_menu")
+async def cb_saveprofit_main_menu(call: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.message.edit_text(
+        "<b>🪼 Drebol Bot</b>\n\n"
+        "Выберите нужный раздел кнопкой ниже:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=start_menu_kb()
+    )
+    await call.answer()
+
+
 @router.callback_query(F.data == "start_ai")
 async def cb_start_ai(call: types.CallbackQuery, state: FSMContext):
     if not _ai_is_configured():
