@@ -15,7 +15,6 @@ from handlers.settings import settings_kb
 from handlers.admin import admin_menu
 from update_manager import get_update_status
 from handlers.funpay_admin import show_funpay_auto_menu
-from handlers.cancel import cmd_cancel
 
 router = Router()
 
@@ -36,9 +35,6 @@ def start_menu_kb() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(text="👨🏼‍💻 Админ-панель", callback_data="start_admin"),
             InlineKeyboardButton(text="🛸 FunPay Auto", callback_data="start_funpayauto"),
-        ],
-        [
-            InlineKeyboardButton(text="❌ Отмена", callback_data="start_cancel"),
         ],
     ])
 
@@ -179,8 +175,3 @@ async def cb_funpay_auto_back_start(call: types.CallbackQuery, state: FSMContext
     )
     await call.answer()
 
-
-@router.callback_query(F.data == "start_cancel")
-async def cb_start_cancel(call: types.CallbackQuery, state: FSMContext):
-    await cmd_cancel(call.message, state)
-    await call.answer()
