@@ -28,9 +28,3 @@ class ProfitStatsStates(StatesGroup):
 
 class TaskUnfilledStates(StatesGroup):
     waiting_custom_period = State()
-
-
-class MigrationStates(StatesGroup):
-    waiting_for_ip = State()
-    waiting_for_root_password = State()
-    waiting_for_confirmation = State()
