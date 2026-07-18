@@ -261,7 +261,8 @@ async def cb_ai(call: types.CallbackQuery, state: FSMContext):
                 "🤖 <b>AI Ассистент</b>\n\nЧатов пока нет. Начните первый!",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="➕ Новый чат", callback_data="ai_new")]
+                    [InlineKeyboardButton(text="➕ Новый чат", callback_data="ai_new")],
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data="ai_back_start")]
                 ])
             )
         else:
@@ -353,7 +354,8 @@ async def cb_ai(call: types.CallbackQuery, state: FSMContext):
                 "🤖 <b>AI Ассистент</b>\n\nЧатов нет. Начните новый!",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="➕ Новый чат", callback_data="ai_new")]
+                    [InlineKeyboardButton(text="➕ Новый чат", callback_data="ai_new")],
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data="ai_back_start")]
                 ])
             )
         else:
