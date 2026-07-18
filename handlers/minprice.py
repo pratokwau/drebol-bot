@@ -880,10 +880,6 @@ def games_kb(games: list, page: int, mp: dict | None = None) -> InlineKeyboardMa
         InlineKeyboardButton(text="📥 Импорт игр из FunPay", callback_data="mp_import_games"),
     ])
     buttons.append([
-        InlineKeyboardButton(text="📤 Экспорт настроек", callback_data="mp_export_settings"),
-        InlineKeyboardButton(text="📥 Импорт настроек", callback_data="mp_import_settings"),
-    ])
-    buttons.append([
         InlineKeyboardButton(text="📊 Актуальность данных", callback_data="mp_freshness"),
     ])
     buttons.append([
