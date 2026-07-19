@@ -1122,7 +1122,7 @@ def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = No
             all_offer_ids = list(all_offer_ids)
             lots_line = f"🔗 Лоты ({len(all_offer_ids)}): {_offer_links(all_offer_ids)}" if all_offer_ids else "🔗 Лоты: —"
             text += f"{lots_line}\n"
-            text += "\n"
+            text += "---------------\n\n"
 
     return text, total_pages
 
