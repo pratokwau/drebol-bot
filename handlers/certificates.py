@@ -995,7 +995,7 @@ async def proc_cert_items_photo(message: types.Message, state: FSMContext):
         await message.bot.download_file(file_info.file_path, buf)
         image_data = base64.b64encode(buf.getvalue()).decode("utf-8")
         response = groq_client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="llama-3.2-11b-vision-preview",
             messages=[{
                 "role": "user",
                 "content": [
@@ -1055,7 +1055,7 @@ async def proc_cert_edit_items(message: types.Message, state: FSMContext):
     current = "\n".join(f"{idx}. {name}" for idx, name in enumerate(old_names, start=1))
     try:
         response = groq_client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="llama-3.3-70b-versatile",
             messages=[{
                 "role": "user",
                 "content": (

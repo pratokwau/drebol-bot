@@ -2412,7 +2412,7 @@ async def proc_add_item_photo(message: types.Message, state: FSMContext):
         image_data = base64.b64encode(buf.getvalue()).decode("utf-8")
 
         response = _get_groq_client().chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="llama-3.2-11b-vision-preview",
             messages=[{
                 "role": "user",
                 "content": [
@@ -2491,7 +2491,7 @@ async def proc_edit_items(message: types.Message, state: FSMContext):
 
     try:
         response = _get_groq_client().chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="llama-3.3-70b-versatile",
             messages=[{
                 "role": "user",
                 "content": (
