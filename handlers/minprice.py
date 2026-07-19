@@ -1080,13 +1080,13 @@ def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = No
     end = start + ITEMS_PER_PAGE
     current = groups[start:end]
 
-    linked_count = sum(1 for _, info in item_list if get_item_offer_ids(info))
+    linked_count = sum(1 for group in groups if any(get_item_offer_ids(info) for _, info in group["items"]))
     rate_line = f"📈 СБП: <code>×{sbp_rate:.4f}</code>\n" if sbp_rate else "📈 СБП: <i>не задана</i>\n"
 
     text = (
         f"🎮 <b>{_html.escape(game_name)}</b>\n"
         f"━━━━━━━━━━━━━━\n"
-        f"📦 Товаров: <b>{len(item_list)}</b>\n"
+        f"📦 Товаров: <b>{len(groups)}</b>\n"
         f"🔗 С лотами: <b>{linked_count}</b>\n"
         f"{rate_line}"
     )
