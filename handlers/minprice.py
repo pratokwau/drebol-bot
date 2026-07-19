@@ -1072,11 +1072,23 @@ def freshness_kb() -> InlineKeyboardMarkup:
 
 def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = None) -> tuple[str, int]:
     item_list = _items_list(items)
-    total_pages = (len(item_list) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE or 1
+
+    # Группируем варианты кэшбека по названию товара
+    groups = []
+    seen_names = {}
+    for item_id, info in item_list:
+        name = info.get("name", item_id) if isinstance(info, dict) else item_id
+        if name in seen_names:
+            groups[seen_names[name]]["items"].append((item_id, info))
+        else:
+            seen_names[name] = len(groups)
+            groups.append({"name": name, "items": [(item_id, info)]})
+
+    total_pages = (len(groups) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE or 1
 
     start = page * ITEMS_PER_PAGE
     end = start + ITEMS_PER_PAGE
-    current = item_list[start:end]
+    current = groups[start:end]
 
     linked_count = sum(1 for _, info in item_list if get_item_offer_ids(info))
     rate_line = f"📈 СБП: <code>×{sbp_rate:.4f}</code>\n" if sbp_rate else "📈 СБП: <i>не задана</i>\n"
@@ -1095,25 +1107,29 @@ def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = No
     if not current:
         text += "📭 <i>Товаров пока нет. Добавьте первый!</i>"
     else:
-        for idx, (item_id, info) in enumerate(current, start=start + 1):
-            name = info.get("name", item_id) if isinstance(info, dict) else item_id
-            cost = _money(info.get("cost", 0))
-            min_price = _money(info.get("min_price", 0))
-            cashback_key = info.get("cashback", "none")
-            cashback_label = _cashback_badge(cashback_key)
+        for idx, group in enumerate(current, start=start + 1):
+            name = group["name"]
             display = _html.escape(_short(str(name), 70))
+            text += f"<b>{idx}. {display}</b>\n"
 
-            offer_ids = get_item_offer_ids(info)
-            lots_line = f"🔗 Лоты ({len(offer_ids)}): {_offer_links(offer_ids)}" if offer_ids else "🔗 Лоты: —"
+            all_offer_ids = []
+            for variant_idx, (item_id, info) in enumerate(group["items"]):
+                cost = _money(info.get("cost", 0))
+                min_price = _money(info.get("min_price", 0))
+                cashback_key = info.get("cashback", "none")
+                cashback_label = _cashback_badge(cashback_key)
 
-            text += (
-                f"<b>{idx}. {display}</b>\n"
-                f"💳 <i>{_html.escape(cashback_label)}</i>\n"
-                f"💸 Закуп: <code>{cost:.2f} ₽</code>  |  💰 Мин: <code>{min_price:.2f} ₽</code>\n"
-            )
-            if sbp_rate:
-                site_price = round(min_price * sbp_rate, 2)
-                text += f"🌐 Сайт (СБП): <code>{site_price:.2f} ₽</code>\n"
+                text += f"💳 <i>{_html.escape(cashback_label)}</i>\n"
+                text += f"💸 Закуп: <code>{cost:.2f} ₽</code>  |  💰 Мин: <code>{min_price:.2f} ₽</code>\n"
+                if sbp_rate:
+                    site_price = round(min_price * sbp_rate, 2)
+                    text += f"🌐 Сайт (СБП): <code>{site_price:.2f} ₽</code>\n"
+                if variant_idx < len(group["items"]) - 1:
+                    text += "\n"
+
+                all_offer_ids.extend(get_item_offer_ids(info))
+
+            lots_line = f"🔗 Лоты ({len(all_offer_ids)}): {_offer_links(all_offer_ids)}" if all_offer_ids else "🔗 Лоты: —"
             text += f"{lots_line}\n"
             text += "\n"
 
