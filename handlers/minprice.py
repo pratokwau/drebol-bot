@@ -139,7 +139,7 @@ class MinPriceStates(StatesGroup):
     waiting_rename_game = State()
     waiting_add_item_name = State()
     waiting_add_item_cost = State()
-    waiting_cashback = State()
+    waiting_add_item_cost_yes_cb = State()
     waiting_photo_import = State()
     waiting_bulk_cost_no_cb = State()
     waiting_bulk_cost_yes_cb = State()
@@ -922,16 +922,6 @@ def game_view_kb(game_hash: str, page: int, total_pages: int, has_rate: bool = F
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def cashback_kb(bulk: bool = False) -> InlineKeyboardMarkup:
-    rows = [
-        [InlineKeyboardButton(text="💳 С кэшбеком", callback_data="mp_cb_yes")],
-        [InlineKeyboardButton(text="💵 Без кэшбека", callback_data="mp_cb_no")],
-    ]
-    if bulk:
-        rows.append([InlineKeyboardButton(text="⛔ Прекратить добавление", callback_data="mp_bulk_stop")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
 def del_game_pick_kb(games: list, selected: set = None) -> InlineKeyboardMarkup:
     if selected is None:
         selected = set()
@@ -1530,6 +1520,23 @@ async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
         )
         await call.answer()
 
+    # --- Кнопка "нет кэшбека" при обычном добавлении товара ---
+    elif data == "mp_item_no_cb":
+        state_data = await state.get_data()
+        item_name = state_data.get("current_item_name")
+        game_hash = state_data.get("current_game_hash")
+        cost_no_cb = state_data.get("current_item_cost_no_cb", 0)
+        await state.clear()
+        await call.answer("С кэшбека нет")
+        await call.message.answer(
+            f"✅ <b>Товар добавлен!</b>\n\n"
+            f"📦 <b>{item_name}</b>\n"
+            f"   💵 Без кэшбека: <code>{cost_no_cb:.2f} ₽</code>\n"
+            f"   💳 С кэшбеком: <i>нет</i>",
+            parse_mode="HTML",
+            reply_markup=back_kb(f"mp_game_{game_hash}")
+        )
+
     # --- Найти / обновить ставку СБП ---
     elif data.startswith("mp_fetchrate_"):
         game_hash = data.split("_")[2]
@@ -1984,46 +1991,6 @@ async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
         )
         await call.answer()
 
-    # --- Выбор кэшбека ---
-    elif data.startswith("mp_cb_"):
-        cb_key = data.split("_")[2]
-        if cb_key not in CASHBACK_OPTIONS:
-            return await call.answer("Неверный вариант", show_alert=True)
-
-        state_data = await state.get_data()
-        game_name = state_data.get("current_game_name")
-        item_name = state_data.get("current_item_name")
-        game_hash = state_data.get("current_game_hash")
-        cost = state_data.get("current_item_cost")
-        min_price = calc_min_price(cost)
-
-        mp = load_mp(user_id)
-        if game_name not in mp:
-            mp[game_name] = {}
-        # Генерируем уникальный ID чтобы одинаковые названия не перезаписывали друг друга
-        import secrets
-        item_id = hashlib.md5(f"{item_name}_{cb_key}_{secrets.token_hex(4)}".encode()).hexdigest()[:8]
-        mp[game_name][item_id] = {
-            "name": item_name,
-            "cost": cost,
-            "min_price": min_price,
-            "cashback": cb_key
-        }
-        save_mp(user_id, mp)
-
-        cashback_label = CASHBACK_OPTIONS[cb_key]
-
-        await call.message.edit_text(
-            f"✅ <b>Товар добавлен!</b>\n\n"
-            f"📦 <b>{item_name}</b> <i>({cashback_label})</i>\n"
-            f"   💸 Закуп: <code>{cost:.2f} ₽</code>\n"
-            f"   💰 Мин. цена: <code>{min_price:.2f} ₽</code>",
-            parse_mode="HTML",
-            reply_markup=back_kb(f"mp_game_{game_hash}")
-        )
-        await state.clear()
-        await call.answer()
-
     # --- Список товаров для редактирования ---
     elif data.startswith("mp_editlist_") and not data.startswith("mp_editlist_pg_"):
         game_hash = data.split("_")[2]
@@ -2432,7 +2399,7 @@ async def proc_add_item_name(message: types.Message, state: FSMContext):
     await state.update_data(current_item_name=item_name)
     await state.set_state(MinPriceStates.waiting_add_item_cost)
     await message.answer(
-        f"💸 <b>Товар:</b> <code>{item_name}</code>\n\nВведите <b>закупочную цену</b> (₽):",
+        f"💸 <b>Товар:</b> <code>{item_name}</code>\n\nВведите цену <b>без кэшбека</b> (₽):",
         parse_mode="HTML"
     )
 
@@ -2697,17 +2664,79 @@ async def proc_add_item_cost(message: types.Message, state: FSMContext):
 
     data = await state.get_data()
     item_name = data.get("current_item_name")
+    game_name = data.get("current_game_name")
+    game_hash = data.get("current_game_hash")
     min_price = calc_min_price(cost)
 
-    await state.update_data(current_item_cost=cost)
-    await state.set_state(MinPriceStates.waiting_cashback)
+    # Сохраняем товар без кэшбека
+    mp = load_mp(message.from_user.id)
+    if game_name not in mp:
+        mp[game_name] = {}
+    item_id_no = hashlib.md5(f"{item_name}_no_{secrets.token_hex(4)}".encode()).hexdigest()[:8]
+    mp[game_name][item_id_no] = {
+        "name": item_name,
+        "cost": cost,
+        "min_price": min_price,
+        "cashback": "no"
+    }
+    save_mp(message.from_user.id, mp)
+
+    await state.update_data(
+        current_item_cost_no_cb=cost,
+        current_item_cost=None,
+    )
+    await state.set_state(MinPriceStates.waiting_add_item_cost_yes_cb)
 
     await message.answer(
-        f"💸 Закуп: <code>{cost:.2f} ₽</code>\n"
-        f"💰 Мин. цена: <code>{min_price:.2f} ₽</code>\n\n"
-        f"Как покупается товар <b>«{item_name}»</b>?",
+        f"✅ <b>Без кэшбека сохранено:</b> <code>{cost:.2f} ₽</code>\n\n"
+        f"💳 Товар <b>«{item_name}»</b>\n"
+        f"Введите цену <b>с кэшбеком</b> (₽):",
         parse_mode="HTML",
-        reply_markup=cashback_kb()
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⛔ На этот товар нет кэшбека", callback_data="mp_item_no_cb")]
+        ])
+    )
+
+
+@router.message(MinPriceStates.waiting_add_item_cost_yes_cb)
+async def proc_add_item_cost_yes_cb(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return await state.clear()
+
+    try:
+        cost = float(message.text.strip().replace(",", "."))
+        if cost <= 0:
+            raise ValueError
+    except ValueError:
+        return await message.answer("⚠️ Введите корректное положительное число.")
+
+    data = await state.get_data()
+    item_name = data.get("current_item_name")
+    game_name = data.get("current_game_name")
+    game_hash = data.get("current_game_hash")
+    min_price = calc_min_price(cost)
+
+    # Сохраняем товар с кэшбеком
+    mp = load_mp(message.from_user.id)
+    if game_name not in mp:
+        mp[game_name] = {}
+    item_id_yes = hashlib.md5(f"{item_name}_yes_{secrets.token_hex(4)}".encode()).hexdigest()[:8]
+    mp[game_name][item_id_yes] = {
+        "name": item_name,
+        "cost": cost,
+        "min_price": min_price,
+        "cashback": "yes"
+    }
+    save_mp(message.from_user.id, mp)
+
+    await state.clear()
+    await message.answer(
+        f"✅ <b>Товар добавлен!</b>\n\n"
+        f"📦 <b>{item_name}</b>\n"
+        f"   💵 Без кэшбека: <code>{data.get('current_item_cost_no_cb', 0):.2f} ₽</code>\n"
+        f"   💳 С кэшбеком: <code>{cost:.2f} ₽</code>",
+        parse_mode="HTML",
+        reply_markup=back_kb(f"mp_game_{game_hash}")
     )
 
 
