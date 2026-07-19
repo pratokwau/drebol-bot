@@ -995,7 +995,7 @@ async def proc_cert_items_photo(message: types.Message, state: FSMContext):
         await message.bot.download_file(file_info.file_path, buf)
         image_data = base64.b64encode(buf.getvalue()).decode("utf-8")
         response = groq_client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
+            model="llama-4-scout-17b-16e-instruct",
             messages=[{
                 "role": "user",
                 "content": [
