@@ -1490,6 +1490,30 @@ async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
         )
         await call.answer()
 
+    # --- Кнопка "нет кэшбека" при пошаговом добавлении ---
+    elif data == "mp_bulk_no_cb":
+        state_data = await state.get_data()
+        photo_items = state_data.get("photo_items", [])
+        photo_idx = state_data.get("photo_idx", 0)
+        game_hash = state_data.get("current_game_hash")
+        await call.answer("С кэшбека нет")
+        await _advance_bulk_item(call, state, photo_items, photo_idx, game_hash)
+
+    # --- Остановить пошаговое добавление товаров ---
+    elif data == "mp_bulk_stop":
+        state_data = await state.get_data()
+        photo_idx = state_data.get("photo_idx", 0)
+        photo_items = state_data.get("photo_items", [])
+        game_hash = state_data.get("current_game_hash")
+        await state.clear()
+        await call.message.edit_text(
+            f"⛔ <b>Добавление остановлено</b>\n\n"
+            f"Добавлено: <b>{photo_idx}</b> из <b>{len(photo_items)}</b> товаров.",
+            parse_mode="HTML",
+            reply_markup=back_kb(f"mp_game_{game_hash}") if game_hash else None
+        )
+        await call.answer()
+
     # --- Найти / обновить ставку СБП ---
     elif data.startswith("mp_fetchrate_"):
         game_hash = data.split("_")[2]
@@ -2611,20 +2635,6 @@ async def proc_bulk_cost_yes_cb(message: types.Message, state: FSMContext):
     await _advance_bulk_item(message, state, photo_items, photo_idx, game_hash)
 
 
-@router.callback_query(F.data == "mp_bulk_no_cb")
-async def cb_bulk_no_cb(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
-        return await state.clear()
-
-    state_data = await state.get_data()
-    photo_items = state_data.get("photo_items", [])
-    photo_idx = state_data.get("photo_idx", 0)
-    game_hash = state_data.get("current_game_hash")
-
-    await call.answer("С кэшбека нет")
-    await _advance_bulk_item(call, state, photo_items, photo_idx, game_hash)
-
-
 async def _advance_bulk_item(target, state: FSMContext, photo_items: list, photo_idx: int, game_hash: str):
     next_idx = photo_idx + 1
     if next_idx < len(photo_items):
@@ -2655,22 +2665,6 @@ async def _advance_bulk_item(target, state: FSMContext, photo_items: list, photo
             await target.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
         else:
             await target.answer(text, parse_mode="HTML", reply_markup=kb)
-
-
-@router.callback_query(F.data == "mp_bulk_stop")
-async def cb_bulk_stop(call: types.CallbackQuery, state: FSMContext):
-    state_data = await state.get_data()
-    photo_idx = state_data.get("photo_idx", 0)
-    photo_items = state_data.get("photo_items", [])
-    game_hash = state_data.get("current_game_hash")
-    await state.clear()
-    await call.message.edit_text(
-        f"⛔ <b>Добавление остановлено</b>\n\n"
-        f"Добавлено: <b>{photo_idx}</b> из <b>{len(photo_items)}</b> товаров.",
-        parse_mode="HTML",
-        reply_markup=back_kb(f"mp_game_{game_hash}") if game_hash else None
-    )
-    await call.answer()
 
 
 @router.message(MinPriceStates.waiting_add_item_cost)
