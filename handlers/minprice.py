@@ -93,8 +93,17 @@ def build_games_text(games: list, mp: dict) -> str:
     for game_name in games:
         items = get_items(mp, game_name)
         item_list = _items_list(items)
-        total_items += len(item_list)
-        linked_items += sum(1 for _, info in item_list if get_item_offer_ids(info))
+        seen_names = set()
+        game_linked = False
+        for _, info in item_list:
+            name = info.get("name", "") if isinstance(info, dict) else ""
+            if name not in seen_names:
+                seen_names.add(name)
+                total_items += 1
+            if get_item_offer_ids(info):
+                game_linked = True
+        if game_linked:
+            linked_items += 1
         if get_game_meta(mp, game_name).get("sbp_rate"):
             rates_count += 1
 
@@ -858,10 +867,17 @@ def games_kb(games: list, page: int, mp: dict | None = None) -> InlineKeyboardMa
         suffix = ""
         if mp is not None:
             item_list = _items_list(get_items(mp, name))
-            linked_count = sum(1 for _, info in item_list if get_item_offer_ids(info))
-            suffix = f" · {len(item_list)}📦/{linked_count}🔗"
+            seen_names = set()
+            game_linked = False
+            for _, info in item_list:
+                item_name = info.get("name", "") if isinstance(info, dict) else ""
+                if item_name not in seen_names:
+                    seen_names.add(item_name)
+                if get_item_offer_ids(info):
+                    game_linked = True
+            suffix = f" · {len(seen_names)}📦/{int(game_linked)}🔗"
         buttons.append([InlineKeyboardButton(
-            text=f"🎮 {_short(name, 46)}{suffix}",
+            text=f"🎮 {_short(_html.escape(name), 46)}{suffix}",
             callback_data=f"mp_game_{get_hash(name)}"
         )])
 
@@ -1099,7 +1115,7 @@ def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = No
     else:
         for idx, group in enumerate(current, start=start + 1):
             name = group["name"]
-            display = _html.escape(_short(str(name), 70))
+            display = _short(_html.escape(str(name)), 70)
             text += f"<b>{idx}. {display}</b>\n"
 
             all_offer_ids = set()
