@@ -2411,8 +2411,16 @@ async def proc_add_item_photo(message: types.Message, state: FSMContext):
         await message.bot.download_file(file_info.file_path, buf)
         image_data = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-        response = _get_groq_client().chat.completions.create(
-            model="llama-4-scout-17b-16e-instruct",
+        client = _get_openrouter_client()
+        if client is None:
+            return await message.answer(
+                "❌ <b>OpenRouter не настроен.</b>\n\n"
+                "Для распознавания фото нужен OPENROUTER_API_KEY.",
+                parse_mode="HTML"
+            )
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[{
                 "role": "user",
                 "content": [
@@ -2921,11 +2929,16 @@ def _get_groq_client():
 def _get_openrouter_client():
     global openrouter_client
     key = get_openrouter_api_key()
+    if not key:
+        return None
     if openrouter_client is None:
         try:
             from openai import OpenAI
+            openrouter_client = OpenAI(
+                api_key=key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+        except Exception:
             openrouter_client = None
-        except ImportError:
-            openrouter_client = None
-            print("[INIT] openai пакет не установлен, OpenRouter fallback недоступен")
+            print("[INIT] OpenRouter клиент не создан")
     return openrouter_client

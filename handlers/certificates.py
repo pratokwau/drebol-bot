@@ -24,6 +24,7 @@ from handlers.demping import get_cardinal_restart_command, get_cardinal_target_p
 from handlers.minprice import (
     COMMISSION,
     MIN_PROFIT,
+    _get_openrouter_client,
     _get_user_lots,
     _match_offers_with_ai,
     groq_client,
@@ -994,8 +995,18 @@ async def proc_cert_items_photo(message: types.Message, state: FSMContext):
         buf = BytesIO()
         await message.bot.download_file(file_info.file_path, buf)
         image_data = base64.b64encode(buf.getvalue()).decode("utf-8")
-        response = groq_client.chat.completions.create(
-            model="llama-4-scout-17b-16e-instruct",
+
+        client = _get_openrouter_client()
+        if client is None:
+            await state.clear()
+            return await message.answer(
+                "❌ <b>OpenRouter не настроен.</b>\n\n"
+                "Для распознавания фото нужен OPENROUTER_API_KEY.",
+                parse_mode=ParseMode.HTML
+            )
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[{
                 "role": "user",
                 "content": [

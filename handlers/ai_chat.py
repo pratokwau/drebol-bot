@@ -590,15 +590,19 @@ async def proc_ai_photo(message: types.Message, state: FSMContext):
         # Текст от пользователя (caption к фото или дефолтный вопрос)
         user_question = message.caption.strip() if message.caption else "Что изображено на фото? Опиши подробно."
 
-        client = _get_groq_client()
+        client = _get_openrouter_client()
         if client is None:
             await thinking_msg.delete()
-            return await message.answer(_ai_not_configured_text(), parse_mode=ParseMode.HTML)
+            return await message.answer(
+                "❌ <b>OpenRouter не настроен.</b>\n\n"
+                "Для распознавания фото нужен OPENROUTER_API_KEY.",
+                parse_mode=ParseMode.HTML
+            )
 
         response = await asyncio.wait_for(
             asyncio.to_thread(
                 lambda: client.chat.completions.create(
-                    model="llama-4-scout-17b-16e-instruct",
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{
                         "role": "user",
                         "content": [
