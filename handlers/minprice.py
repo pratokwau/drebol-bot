@@ -1102,7 +1102,7 @@ def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = No
             display = _html.escape(_short(str(name), 70))
             text += f"<b>{idx}. {display}</b>\n"
 
-            all_offer_ids = []
+            all_offer_ids = set()
             for variant_idx, (item_id, info) in enumerate(group["items"]):
                 cost = _money(info.get("cost", 0))
                 min_price = _money(info.get("min_price", 0))
@@ -1117,8 +1117,9 @@ def build_game_text(game_name: str, items: dict, page: int, sbp_rate: float = No
                 if variant_idx < len(group["items"]) - 1:
                     text += "\n"
 
-                all_offer_ids.extend(get_item_offer_ids(info))
+                all_offer_ids.update(get_item_offer_ids(info))
 
+            all_offer_ids = list(all_offer_ids)
             lots_line = f"🔗 Лоты ({len(all_offer_ids)}): {_offer_links(all_offer_ids)}" if all_offer_ids else "🔗 Лоты: —"
             text += f"{lots_line}\n"
             text += "\n"
