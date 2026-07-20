@@ -1567,6 +1567,7 @@ async def cb_cert_update_dmp(call: types.CallbackQuery):
                 unchanged += 1
             else:
                 demping[offer_id]["min_price"] = new_price
+                demping[offer_id]["max_price"] = round(new_price + 200, 2)
                 updated += 1
     save_cert_demping(demping)
     await call.message.answer(
