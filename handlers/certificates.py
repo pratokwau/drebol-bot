@@ -35,14 +35,6 @@ from handlers.minprice import (
 router = Router()
 
 CERT_DEMPING_FILE = "data/certificates_demping.json"
-CERT_CARDINAL_TARGET_PATH = os.getenv(
-    "CERT_CARDINAL_TARGET_PATH",
-    get_cardinal_target_path(),
-)
-CERT_CARDINAL_SERVICE_NAME = os.getenv(
-    "CERT_CARDINAL_SERVICE_NAME",
-    get_cardinal_restart_command(),
-)
 GAMES_PER_PAGE = 8
 ITEMS_PER_PAGE = 12
 class CertificateStates(StatesGroup):
@@ -1594,13 +1586,17 @@ async def cb_cert_update_dmp(call: types.CallbackQuery):
 async def cb_cert_to_cardinal(call: types.CallbackQuery):
     if not os.path.exists(CERT_DEMPING_FILE):
         return await call.answer("Файл не найден", show_alert=True)
+
+    target_path = get_cardinal_target_path()
+    restart_command = get_cardinal_restart_command()
+
     await call.message.edit_text("⏳ <b>Отправляю сертификаты в Cardinal...</b>", parse_mode=ParseMode.HTML)
     try:
-        target_dir = os.path.dirname(CERT_CARDINAL_TARGET_PATH) or "."
+        target_dir = os.path.dirname(target_path) or "."
         os.makedirs(target_dir, exist_ok=True)
-        shutil.copy2(CERT_DEMPING_FILE, CERT_CARDINAL_TARGET_PATH)
+        shutil.copy2(CERT_DEMPING_FILE, target_path)
         result = subprocess.run(
-            CERT_CARDINAL_SERVICE_NAME,
+            restart_command,
             shell=True,
             capture_output=True,
             text=True,
@@ -1610,8 +1606,8 @@ async def cb_cert_to_cardinal(call: types.CallbackQuery):
             raise RuntimeError((result.stderr or result.stdout or "unknown error").strip())
         await call.message.edit_text(
             "✅ <b>Файл сертификатов отправлен в Cardinal</b>\n\n"
-            f"📁 <code>{CERT_CARDINAL_TARGET_PATH}</code>\n"
-            f"🔄 Команда выполнена:\n<code>{CERT_CARDINAL_SERVICE_NAME}</code>",
+            f"📁 <code>{target_path}</code>\n"
+            f"🔄 Команда выполнена:\n<code>{restart_command}</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=_main_kb(True),
         )
