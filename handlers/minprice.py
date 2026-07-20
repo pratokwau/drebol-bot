@@ -94,16 +94,15 @@ def build_games_text(games: list, mp: dict) -> str:
         items = get_items(mp, game_name)
         item_list = _items_list(items)
         seen_names = set()
-        game_linked = False
+        linked_names = set()
         for _, info in item_list:
             name = info.get("name", "") if isinstance(info, dict) else ""
             if name not in seen_names:
                 seen_names.add(name)
                 total_items += 1
-            if get_item_offer_ids(info):
-                game_linked = True
-        if game_linked:
-            linked_items += 1
+            if get_item_offer_ids(info) and name not in linked_names:
+                linked_names.add(name)
+                linked_items += 1
         if get_game_meta(mp, game_name).get("sbp_rate"):
             rates_count += 1
 
@@ -868,14 +867,14 @@ def games_kb(games: list, page: int, mp: dict | None = None) -> InlineKeyboardMa
         if mp is not None:
             item_list = _items_list(get_items(mp, name))
             seen_names = set()
-            game_linked = False
+            linked_names = set()
             for _, info in item_list:
                 item_name = info.get("name", "") if isinstance(info, dict) else ""
                 if item_name not in seen_names:
                     seen_names.add(item_name)
-                if get_item_offer_ids(info):
-                    game_linked = True
-            suffix = f" · {len(seen_names)}📦/{int(game_linked)}🔗"
+                if get_item_offer_ids(info) and item_name not in linked_names:
+                    linked_names.add(item_name)
+            suffix = f" · {len(seen_names)}📦/{len(linked_names)}🔗"
         buttons.append([InlineKeyboardButton(
             text=f"🎮 {_short(_html.escape(name), 46)}{suffix}",
             callback_data=f"mp_game_{get_hash(name)}"
