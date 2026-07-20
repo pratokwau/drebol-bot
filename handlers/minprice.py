@@ -986,8 +986,13 @@ def del_item_pick_kb(game_hash: str, items: dict, selected: set = None) -> Inlin
         if item_id == "_meta":
             continue
         name = info.get("name", item_id) if isinstance(info, dict) else item_id
-        cb_emoji = CASHBACK_EMOJI.get(info.get("cashback", "none") if isinstance(info, dict) else "none", "")
-        display = f"{cb_emoji} {name[:28]}" if cb_emoji and cb_emoji != "—" else name[:33]
+        cashback_key = info.get("cashback", "none") if isinstance(info, dict) else "none"
+        cb_label = {
+            "yes": "с кэш",
+            "no": "без кэш",
+            "none": "нет кэш",
+        }.get(cashback_key, "нет кэш")
+        display = f"{name[:20]} ({cb_label})"
         prefix = "✅ " if item_id in selected else "☐ "
         buttons.append([InlineKeyboardButton(
             text=f"{prefix}{display}",

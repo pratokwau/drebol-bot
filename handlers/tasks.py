@@ -1,5 +1,7 @@
 import asyncio
 import html as _html
+import json
+import os
 from datetime import datetime, timedelta
 
 from aiogram import Router, F, types
@@ -17,6 +19,7 @@ router = Router()
 
 
 CHECK_DEPTH = 150
+INSTALL_DATE_FILE = "data/bot_install_date.json"
 TASK_PERIOD_LABELS = {
     "day": "за день",
     "prev_day": "за прошлый день",
@@ -91,6 +94,33 @@ def _filter_sales_by_period(sales: list, start: datetime, end: datetime) -> list
     for sale in sales:
         dt = _sale_datetime(sale)
         if dt is None or start <= dt <= end:
+            filtered.append(sale)
+    return filtered
+
+
+def _get_install_date() -> datetime:
+    """Возвращает дату установки/первого запуска бота. Если не сохранена — создаёт."""
+    os.makedirs("data", exist_ok=True)
+    if os.path.exists(INSTALL_DATE_FILE):
+        try:
+            with open(INSTALL_DATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return datetime.fromisoformat(data["install_date"])
+        except Exception:
+            pass
+    now = datetime.now()
+    with open(INSTALL_DATE_FILE, "w", encoding="utf-8") as f:
+        json.dump({"install_date": now.isoformat()}, f)
+    return now
+
+
+def _filter_sales_by_install_date(sales: list, install_date: datetime) -> list:
+    filtered = []
+    for sale in sales:
+        dt = _sale_datetime(sale)
+        if dt is None:
+            continue
+        if dt >= install_date:
             filtered.append(sale)
     return filtered
 
@@ -175,6 +205,7 @@ async def remind_unfilled_orders():
     try:
         acc = make_funpay_account(gk, ua)
         sales = fetch_funpay_sales(acc, limit=CHECK_DEPTH)
+        sales = _filter_sales_by_install_date(sales, _get_install_date())
 
         to_remind_ids = []
         
@@ -304,6 +335,7 @@ async def _run_unfilled_check(target, state: FSMContext, period: str, custom_tex
         acc = make_funpay_account(gk, ua)
         sales = fetch_funpay_sales(acc, limit=CHECK_DEPTH)
         sales = _filter_sales_by_period(sales, start, end)
+        sales = _filter_sales_by_install_date(sales, _get_install_date())
 
         to_remind_ids = []
         for s in sales[:CHECK_DEPTH]:
@@ -361,6 +393,7 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
             f"{start.strftime('%d.%m.%Y')} - {end.strftime('%d.%m.%Y')}" if period == "custom" else TASK_PERIOD_LABELS.get(period, period)
         )
         sales = _filter_sales_by_period(sales, start, end)
+        sales = _filter_sales_by_install_date(sales, _get_install_date())
 
         to_fill = []
         for s in sales[:CHECK_DEPTH]:
