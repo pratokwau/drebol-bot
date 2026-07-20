@@ -220,12 +220,12 @@ async def remind_unfilled_orders():
         if to_remind_ids:
             kb = InlineKeyboardBuilder()
             kb.row(types.InlineKeyboardButton(
-                text=f"📝 Заполнить хвосты ({len(to_remind_ids)} шт.)", 
-                callback_data="task_fill_unfilled")
+                text=f"📝 Заполнить хвосты ({len(to_remind_ids)} шт.)",
+                callback_data="task_unfilled_send_now")
             )
-            
+
             await bot.send_message(
-                ADMIN_ID, 
+                ADMIN_ID,
                 _summary_text(len(to_remind_ids)),
                 reply_markup=kb.as_markup(),
                 parse_mode=ParseMode.HTML
@@ -258,6 +258,18 @@ async def cb_task_fill_unfilled_menu(call: types.CallbackQuery, state: FSMContex
         reply_markup=_task_period_kb().as_markup()
     )
     await call.answer()
+
+
+@router.callback_query(F.data == "task_unfilled_send_now")
+async def cb_task_unfilled_send_now(call: types.CallbackQuery, state: FSMContext):
+    """Сразу отправляет карточки незаполненных заказов за текущий день."""
+    await state.clear()
+    await state.update_data(
+        task_unfilled_period="day",
+        task_unfilled_custom_text="",
+        task_unfilled_period_label=TASK_PERIOD_LABELS["day"],
+    )
+    await cb_process_tasks(call, state)
 
 
 @router.callback_query(F.data == "task_unfilled_period_day")
@@ -402,7 +414,6 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
 
         if not to_fill:
             await bot.send_message(ADMIN_ID, "✅ Все заказы уже заполнены!")
-            await call.answer()
             return
 
         total_to_send = len(to_fill)
