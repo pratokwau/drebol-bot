@@ -103,6 +103,41 @@ async def check_admin_daily_report_time():
     await send_admin_daily_report()
 
 
+_last_unfilled_reminder_minute = None
+
+
+async def check_unfilled_reminders_time():
+    """За 20 и 5 минут до админ-отчёта напоминает о незаполненных заказах."""
+    global _last_unfilled_reminder_minute
+    from handlers.settings import get_user_settings
+
+    now = datetime.now()
+    settings = get_user_settings(ADMIN_ID)
+    report_time = settings.get("admin_report_time", "23:59")
+    current_time = now.strftime("%H:%M")
+
+    try:
+        report_dt = datetime.strptime(report_time, "%H:%M").replace(
+            year=now.year, month=now.month, day=now.day
+        )
+    except ValueError:
+        return
+
+    reminder_20 = (report_dt - timedelta(minutes=20)).strftime("%H:%M")
+    reminder_5 = (report_dt - timedelta(minutes=5)).strftime("%H:%M")
+
+    if current_time not in (reminder_20, reminder_5):
+        return
+    if _last_unfilled_reminder_minute == current_time:
+        return
+
+    _last_unfilled_reminder_minute = current_time
+    try:
+        await remind_unfilled_orders()
+    except Exception as e:
+        print(f"[UNFILLED REMINDER] Ошибка: {e}")
+
+
 async def _check_downtime_on_startup():
     return None
 
@@ -132,8 +167,7 @@ async def main():
     }
     scheduler = AsyncIOScheduler(job_defaults=job_defaults)
 
-    scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=40)
-    scheduler.add_job(remind_unfilled_orders,        "cron",     hour=23, minute=55)
+    scheduler.add_job(check_unfilled_reminders_time, "cron",     minute="*")
     scheduler.add_job(check_admin_daily_report_time, "cron",     minute="*")
     scheduler.start()
 
