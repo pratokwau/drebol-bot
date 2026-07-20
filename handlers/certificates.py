@@ -357,7 +357,7 @@ def _demping_lot_template(info: dict, price: float) -> dict:
         "active": True,
         "triggers": triggers,
         "min_price": price,
-        "max_price": 99999,
+        "max_price": round(price + 200, 2),
         "min_rating": 3,
         "skip_no_rating": True,
         "price_step": 0.01,
