@@ -274,6 +274,7 @@ def get_auto_buy_prices(product_full_name: str, order_game: str = None, order_am
             cleaned_order_game = clean_text(order_game)
             direct_games = {
                 g: items for g, items in mp_data.items()
+                if clean_text(g) == cleaned_order_game
             }
             if direct_games:
                 games_to_search = direct_games
@@ -289,9 +290,10 @@ def get_auto_buy_prices(product_full_name: str, order_game: str = None, order_am
                     games_to_search = {
                         game_name: items
                         for score, game_name, items in scored_games
+                        if score == best_score
                     }
                 else:
-                    games_to_search = mp_data
+                    games_to_search = {}
         else:
             games_to_search = mp_data
 
@@ -893,7 +895,7 @@ async def fast_save_cost(call: types.CallbackQuery):
         profits[existing_idx] = new_entry
     else:
         profits.append(new_entry)
-    save_profits(user_id, profits)
+    save_profits(profits, user_id)
 
     await call.message.edit_text(f"✅ Заказ #{order_id} сохранен!\nПрибыль: <b>{profit:.2f} ₽</b>", parse_mode=ParseMode.HTML)
     await call.answer()
@@ -970,7 +972,7 @@ async def process_cost(message: types.Message, state: FSMContext):
         else:
             profits.append(new_entry)
 
-        save_profits(message.from_user.id, profits)
+        save_profits(profits, message.from_user.id)
 
         # Редактируем исходное сообщение с заказом
         order_msg_id = data.get('order_message_id')

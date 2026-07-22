@@ -22,6 +22,9 @@ def load_profits(user_id: int = None) -> list:
 
 
 def save_profits(profits: list, user_id: int = None):
+    if isinstance(profits, int) and isinstance(user_id, list):
+        profits, user_id = user_id, profits
+
     if user_id:
         path = f"data/profits_{user_id}.json"
     else:

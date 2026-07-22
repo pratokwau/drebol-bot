@@ -292,7 +292,7 @@ async def process_funpay_prices(message: types.Message, state: FSMContext):
         "profit": profit,
         "date": format_date()
     })
-    save_profits(message.from_user.id, profits)
+    save_profits(profits, message.from_user.id)
     update_wallet(message.from_user.id, profit) 
 
     text = (
@@ -386,7 +386,7 @@ async def process_playerok_prices(message: types.Message, state: FSMContext):
         "profit": profit,
         "date": format_date()
     })
-    save_profits(message.from_user.id, profits)
+    save_profits(profits, message.from_user.id)
     update_wallet(message.from_user.id, profit) 
 
     text = (
@@ -543,7 +543,7 @@ async def process_edit_funpay_prices(message: types.Message, state: FSMContext):
             "profit": profit,
             "date": old_date
         }
-        save_profits(message.from_user.id, profits)
+        save_profits(profits, message.from_user.id)
         text = f"✅ <b>Запись №{display_num} обновлена: {profit:.2f} ₽</b>"
         await message.answer(text, parse_mode=ParseMode.HTML)
     else:
@@ -642,7 +642,7 @@ async def process_edit_playerok_prices(message: types.Message, state: FSMContext
             "profit": profit,
             "date": old_date
         }
-        save_profits(message.from_user.id, profits)
+        save_profits(profits, message.from_user.id)
         text = f"✅ <b>Запись №{display_num} обновлена: {profit:.2f} ₽</b>"
         await message.answer(text, parse_mode=ParseMode.HTML)
     else:
@@ -694,7 +694,7 @@ async def process_delete_profit(message: types.Message, state: FSMContext):
                 except Exception: pass
 
             removed_profit = profits.pop(real_index)
-            save_profits(message.from_user.id, profits)
+            save_profits(profits, message.from_user.id)
             
             # Возвращаем деньги в кошелек (отнимаем прибыль)
             update_wallet(message.from_user.id, -removed_profit['profit'])
