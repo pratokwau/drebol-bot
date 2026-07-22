@@ -12,7 +12,13 @@ from aiogram.fsm.context import FSMContext
 from loader import bot
 from config import ADMIN_ID
 from database import db
-from handlers.funpay_admin import extract_order_amount, fetch_funpay_sales, get_auto_buy_prices, make_funpay_account
+from handlers.funpay_admin import (
+    extract_order_amount,
+    fetch_funpay_sales,
+    get_auto_buy_prices,
+    make_funpay_account,
+    remember_fp_order_date,
+)
 from states.states import TaskUnfilledStates
 
 router = Router()
@@ -437,6 +443,13 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
             product_name = getattr(s, 'description', getattr(s, 'product_name', 'Без названия'))
             order_amount = _extract_order_amount(product_name, s)
             order_game = _extract_order_game(s)
+            order_date = str(getattr(s, 'date', getattr(s, 'created_at', '')))
+            if order_date:
+                remember_fp_order_date(s_id, order_date)
+                state_data = await state.get_data()
+                order_dates = dict(state_data.get("fp_order_dates", {}))
+                order_dates[s_id] = order_date
+                await state.update_data(fp_order_dates=order_dates)
 
             # Если мы уже правили цену через кнопку, берем её, иначе из API
             if s_id in custom_prices:

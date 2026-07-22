@@ -38,6 +38,18 @@ router = Router()
 SALES_PER_PAGE = 15
 SALES_BATCH_SIZE = 150
 SALES_PAGES_PER_BATCH = SALES_BATCH_SIZE // SALES_PER_PAGE
+_FP_ORDER_DATE_CACHE: dict[str, str] = {}
+
+
+def remember_fp_order_date(order_id: str, order_date: str):
+    order_id = str(order_id)
+    order_date = str(order_date or "").strip()
+    if order_id and order_date:
+        _FP_ORDER_DATE_CACHE[order_id] = order_date
+
+
+def get_fp_order_date(order_id: str) -> str:
+    return _FP_ORDER_DATE_CACHE.get(str(order_id), "")
 
 
 class FPAdminStates(StatesGroup):
@@ -547,6 +559,7 @@ async def _build_order_card(s_id: str, api_price: str, source_page: int, state: 
                 api_price = clean_price(raw_p)
                 buyer_username = getattr(s, 'buyer_username', getattr(s, 'buyer', ''))
                 order_date = str(getattr(s, 'date', getattr(s, 'created_at', '')))
+                remember_fp_order_date(s_id, order_date)
 
                 order_amount = extract_order_amount(product_name)
 
@@ -559,6 +572,11 @@ async def _build_order_card(s_id: str, api_price: str, source_page: int, state: 
 
     # Кастомная цена из стэйта
     state_data = await state.get_data()
+    if order_date:
+        remember_fp_order_date(s_id, order_date)
+        order_dates = dict(state_data.get("fp_order_dates", {}))
+        order_dates[s_id] = order_date
+        await state.update_data(fp_order_dates=order_dates)
     custom_prices = state_data.get("custom_sell_prices", {})
     final_price = custom_prices.get(s_id, api_price)
 
@@ -671,6 +689,7 @@ async def process_order_search(message: types.Message, state: FSMContext):
 
     source_page = index // SALES_PER_PAGE
     await state.update_data(last_fp_sales_page=source_page)
+    state_data = await state.get_data()
 
     s_id = str(getattr(sale, 'id', order_id))
     product_name = getattr(sale, 'product_name', getattr(sale, 'description', 'Без названия'))
@@ -683,6 +702,12 @@ async def process_order_search(message: types.Message, state: FSMContext):
     subcategory_name = str(getattr(sale, 'subcategory_name', '') or '').strip()
     if subcategory_name:
         order_game = subcategory_name.rsplit(',', 1)[0].strip()
+    if order_date:
+        remember_fp_order_date(s_id, order_date)
+        state_data = await state.get_data()
+        order_dates = dict(state_data.get("fp_order_dates", {}))
+        order_dates[s_id] = order_date
+        await state.update_data(fp_order_dates=order_dates)
 
     cost = db.get_prime_cost(s_id)
     custom_prices = state_data.get("custom_sell_prices", {})
@@ -869,7 +894,7 @@ async def process_edit_sell(message: types.Message, state: FSMContext):
 
 # --- АВТО-ЗАКУП ---
 @router.callback_query(F.data.startswith("fast_save_"))
-async def fast_save_cost(call: types.CallbackQuery):
+async def fast_save_cost(call: types.CallbackQuery, state: FSMContext):
 
     params = call.data.split("_")
     order_id = params[2]
@@ -881,6 +906,8 @@ async def fast_save_cost(call: types.CallbackQuery):
     db.set_prime_cost(order_id, buy_price)
 
     user_id = call.from_user.id
+    state_data = await state.get_data()
+    order_date = get_fp_order_date(order_id) or state_data.get("fp_order_dates", {}).get(order_id, "")
     profits = load_profits(user_id)
 
     existing_idx = next(
@@ -892,10 +919,10 @@ async def fast_save_cost(call: types.CallbackQuery):
         "buy_price": round(buy_price, 2),
         "sell_price": round(sell_price, 2),
         "profit": round(profit, 2),
-        "date": format_date_now()
+        "date": order_date or format_date_now()
     }
     if existing_idx is not None:
-        new_entry["date"] = profits[existing_idx].get("date", format_date_now())
+        new_entry["date"] = order_date or profits[existing_idx].get("date", format_date_now())
         profits[existing_idx] = new_entry
     else:
         profits.append(new_entry)
@@ -950,6 +977,7 @@ async def process_cost(message: types.Message, state: FSMContext):
         buy_price = float(message.text.replace(",", "."))
         data = await state.get_data()
         order_id, sell_price = data['order_id'], float(data['price'])
+        order_date = get_fp_order_date(order_id) or data.get("fp_order_dates", {}).get(order_id, "")
 
         profit = (sell_price * 0.97) - buy_price
         db.set_prime_cost(order_id, buy_price)
@@ -967,11 +995,11 @@ async def process_cost(message: types.Message, state: FSMContext):
             "buy_price": round(buy_price, 2),
             "sell_price": round(sell_price, 2),
             "profit": round(profit, 2),
-            "date": format_date_now()
+            "date": order_date or format_date_now()
         }
 
         if existing_idx is not None:
-            new_entry["date"] = profits[existing_idx].get("date", format_date_now())
+            new_entry["date"] = order_date or profits[existing_idx].get("date", format_date_now())
             profits[existing_idx] = new_entry
         else:
             profits.append(new_entry)

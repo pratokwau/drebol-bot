@@ -816,8 +816,8 @@ async def cb_stats_period(call: types.CallbackQuery, state: FSMContext):
     text = (
         f"📊 <b>Статистика {period_str}</b>\n"
         f"━━━━━━━━━━━━━━\n"
-        f"🧾 Записей: <b>{count}</b>\n"
-        f"💵 Продажи: <b>{total_sell:.2f} ₽</b>\n"
+        f"🧾 Заказов: <b>{count}</b>\n"
+        f"💵 Сумма продаж: <b>{total_sell:.2f} ₽</b>\n"
         f"💰 Чистая прибыль: <b>{total:.2f} ₽</b>"
     )
 
@@ -858,8 +858,8 @@ async def process_custom_period(message: types.Message, state: FSMContext):
         f"📊 <b>Статистика за период</b>\n"
         f"━━━━━━━━━━━━━━\n"
         f"📆 {start_str} — {end_str}\n"
-        f"🧾 Записей: <b>{count}</b>\n"
-        f"💵 Продажи: <b>{total_sell:.2f} ₽</b>\n"
+        f"🧾 Заказов: <b>{count}</b>\n"
+        f"💵 Сумма продаж: <b>{total_sell:.2f} ₽</b>\n"
         f"💰 Чистая прибыль: <b>{total:.2f} ₽</b>"
     )
 
