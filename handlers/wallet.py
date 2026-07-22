@@ -1,7 +1,7 @@
 import os
 import json
 import html
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiogram import Router, types
 from aiogram.enums import ParseMode
 from handlers.utils import load_profits
@@ -16,30 +16,68 @@ def update_wallet(user_id: int, amount: float):
     """
     return 0
 
-async def send_daily_report(bot, user_id):
+def _parse_profit_date(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for fmt in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+
+def _day_bounds(day: datetime) -> tuple[datetime, datetime]:
+    start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1) - timedelta(microseconds=1)
+    return start, end
+
+
+def _money(value) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+async def send_daily_report(bot, user_id, report_date: datetime | None = None):
     profits = load_profits(user_id)
-    today = datetime.now().strftime("%d.%m.%Y")
+    report_day = report_date or datetime.now()
+    start, end = _day_bounds(report_day)
+    day_label = report_day.strftime("%d.%m.%Y")
     
     fp_orders = [
         p for p in profits 
-        if today in p.get('date', '') 
+        if (dt := _parse_profit_date(p.get("date", ""))) is not None
+        and start <= dt <= end
         and (p.get('type') == "FunPay" or "FP #" in p.get('type', ''))
     ]
     fp_count = len(fp_orders)
-    fp_sum = sum(p.get('sell_price', 0) for p in fp_orders)
+    fp_sum = sum(_money(p.get('sell_price', 0)) for p in fp_orders)
 
     po_orders = [
         p for p in profits 
-        if today in p.get('date', '') 
+        if (dt := _parse_profit_date(p.get("date", ""))) is not None
+        and start <= dt <= end
         and (p.get('type') == "PlayerOK" or "PO #" in p.get('type', ''))
     ]
     po_count = len(po_orders)
-    po_sum = sum(p.get('sell_price', 0) for p in po_orders)
+    po_sum = sum(_money(p.get('sell_price', 0)) for p in po_orders)
 
-    total_profit = sum(p['profit'] for p in profits if today in p.get('date','') and p['profit'] > 0)
+    total_profit = sum(
+        _money(p.get('profit', 0))
+        for p in profits
+        if (dt := _parse_profit_date(p.get("date", ""))) is not None
+        and start <= dt <= end
+        and _money(p.get("profit", 0)) > 0
+    )
 
     text = (
-        f"🌙 <b>Статистика за {today}</b>\n\n"
+        f"🌙 <b>Статистика за {day_label}</b>\n\n"
         f"📦 Продажи FunPay: <b>{fp_count}</b> на сумму <b>{fp_sum:.2f} ₽</b>\n"
         f"📦 Продажи PlayerOK: <b>{po_count}</b> на сумму <b>{po_sum:.2f} ₽</b>\n"
         f"──────────────────\n"
