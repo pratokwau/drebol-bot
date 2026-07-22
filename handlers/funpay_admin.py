@@ -259,6 +259,33 @@ def get_auto_buy_prices(product_full_name: str, order_game: str = None, order_am
             tokens.append(root)
         return set(tokens)
 
+    def resolve_games(mp_data: dict) -> dict:
+        if not order_game:
+            return mp_data
+
+        cleaned_order_game = clean_text(order_game)
+        direct_games = {
+            g: items for g, items in mp_data.items()
+            if clean_text(g) == cleaned_order_game
+        }
+        if direct_games:
+            return direct_games
+
+        order_tokens = game_tokens(order_game)
+        scored_games = []
+        for game_name, items in mp_data.items():
+            overlap = order_tokens & game_tokens(game_name)
+            if overlap:
+                scored_games.append((len(overlap), game_name, items))
+        if scored_games:
+            best_score = max(score for score, _, _ in scored_games)
+            return {
+                game_name: items
+                for score, game_name, items in scored_games
+                if score == best_score
+            }
+        return {}
+
     product_for_match = strip_min_order_terms(product_full_name)
     cleaned_product = clean_text(product_for_match)
     quantity = order_amount if order_amount and order_amount > 1 else 1
@@ -270,32 +297,9 @@ def get_auto_buy_prices(product_full_name: str, order_game: str = None, order_am
         with open(mp_path, encoding="utf-8") as f:
             mp_data = json.load(f)
 
-        if order_game:
-            cleaned_order_game = clean_text(order_game)
-            direct_games = {
-                g: items for g, items in mp_data.items()
-                if clean_text(g) == cleaned_order_game
-            }
-            if direct_games:
-                games_to_search = direct_games
-            else:
-                order_tokens = game_tokens(order_game)
-                scored_games = []
-                for game_name, items in mp_data.items():
-                    overlap = order_tokens & game_tokens(game_name)
-                    if overlap:
-                        scored_games.append((len(overlap), game_name, items))
-                if scored_games:
-                    best_score = max(score for score, _, _ in scored_games)
-                    games_to_search = {
-                        game_name: items
-                        for score, game_name, items in scored_games
-                        if score == best_score
-                    }
-                else:
-                    games_to_search = {}
-        else:
-            games_to_search = mp_data
+        games_to_search = resolve_games(mp_data)
+        if order_game and not games_to_search:
+            return certificate_matches()
 
         # Находим максимальную длину совпадения для КАЖДОЙ категории кэшбека отдельно
         # Так если "100 BC" с кэшбеком и "100 BC (Black Coin)" без кэшбека - возьмем оба
@@ -546,8 +550,8 @@ async def _build_order_card(s_id: str, api_price: str, source_page: int, state: 
 
                 order_amount = extract_order_amount(product_name)
 
-                subcategory_name = getattr(s, 'subcategory_name', '') or ''
-                if ',' in subcategory_name:
+                subcategory_name = str(getattr(s, 'subcategory_name', '') or '').strip()
+                if subcategory_name:
                     order_game = subcategory_name.rsplit(',', 1)[0].strip()
                 break
     except Exception:
@@ -676,8 +680,8 @@ async def process_order_search(message: types.Message, state: FSMContext):
     buyer_username = getattr(sale, 'buyer_username', getattr(sale, 'buyer', ''))
     order_date = str(getattr(sale, 'date', getattr(sale, 'created_at', '')))
     order_game = None
-    subcategory_name = getattr(sale, 'subcategory_name', '') or ''
-    if ',' in subcategory_name:
+    subcategory_name = str(getattr(sale, 'subcategory_name', '') or '').strip()
+    if subcategory_name:
         order_game = subcategory_name.rsplit(',', 1)[0].strip()
 
     cost = db.get_prime_cost(s_id)

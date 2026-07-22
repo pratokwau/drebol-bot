@@ -1636,7 +1636,23 @@ def get_certificate_auto_buy_prices(product_full_name: str, order_game: str | No
         direct_games = {
             game_name: game_data
             for game_name, game_data in data.items()
+            if _normalize(game_name) == game_clean
         }
+        if not direct_games:
+            order_tokens = {token for token in game_clean.split() if len(token) > 2}
+            scored = []
+            for game_name, game_data in data.items():
+                game_tokens = {token for token in _normalize(game_name).split() if len(token) > 2}
+                overlap = order_tokens & game_tokens
+                if overlap:
+                    scored.append((len(overlap), game_name, game_data))
+            if scored:
+                best = max(score for score, _, _ in scored)
+                direct_games = {
+                    game_name: game_data
+                    for score, game_name, game_data in scored
+                    if score == best
+                }
     else:
         direct_games = data
     if not direct_games:

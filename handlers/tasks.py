@@ -156,8 +156,8 @@ def _extract_order_amount(product_name: str, sale) -> int:
 
 
 def _extract_order_game(sale) -> str | None:
-    subcategory_name = getattr(sale, 'subcategory_name', '') or ''
-    if ',' in subcategory_name:
+    subcategory_name = str(getattr(sale, 'subcategory_name', '') or '').strip()
+    if subcategory_name:
         return subcategory_name.rsplit(',', 1)[0].strip()
     return None
 
