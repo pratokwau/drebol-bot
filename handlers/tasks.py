@@ -348,7 +348,6 @@ async def _run_unfilled_check(target, state: FSMContext, period: str, custom_tex
         acc = make_funpay_account(gk, ua)
         sales = fetch_funpay_sales(acc, limit=MANUAL_PERIOD_SCAN_DEPTH)
         sales = _filter_sales_by_period(sales, start, end)
-        sales = _filter_sales_by_install_date(sales, _get_install_date())
 
         to_remind_ids = []
         for s in sales:
@@ -406,7 +405,6 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
             f"{start.strftime('%d.%m.%Y')} - {end.strftime('%d.%m.%Y')}" if period == "custom" else TASK_PERIOD_LABELS.get(period, period)
         )
         sales = _filter_sales_by_period(sales, start, end)
-        sales = _filter_sales_by_install_date(sales, _get_install_date())
 
         to_fill = []
         for s in sales:
