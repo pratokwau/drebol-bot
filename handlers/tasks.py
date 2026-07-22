@@ -19,6 +19,7 @@ router = Router()
 
 
 CHECK_DEPTH = 150
+MANUAL_PERIOD_SCAN_DEPTH = 3000
 INSTALL_DATE_FILE = "data/bot_install_date.json"
 TASK_PERIOD_LABELS = {
     "day": "за день",
@@ -345,12 +346,12 @@ async def _run_unfilled_check(target, state: FSMContext, period: str, custom_tex
 
     try:
         acc = make_funpay_account(gk, ua)
-        sales = fetch_funpay_sales(acc, limit=CHECK_DEPTH)
+        sales = fetch_funpay_sales(acc, limit=MANUAL_PERIOD_SCAN_DEPTH)
         sales = _filter_sales_by_period(sales, start, end)
         sales = _filter_sales_by_install_date(sales, _get_install_date())
 
         to_remind_ids = []
-        for s in sales[:CHECK_DEPTH]:
+        for s in sales:
             s_id = str(s.id)
             if "refund" in str(s.status).lower():
                 continue
@@ -396,7 +397,7 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
     gk, ua = db.get_config()
     try:
         acc = make_funpay_account(gk, ua)
-        sales = fetch_funpay_sales(acc, limit=CHECK_DEPTH)
+        sales = fetch_funpay_sales(acc, limit=MANUAL_PERIOD_SCAN_DEPTH)
         state_data = await state.get_data()
         period = state_data.get("task_unfilled_period") or "day"
         custom_text = state_data.get("task_unfilled_custom_text") or None
@@ -408,7 +409,7 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
         sales = _filter_sales_by_install_date(sales, _get_install_date())
 
         to_fill = []
-        for s in sales[:CHECK_DEPTH]:
+        for s in sales:
             if "refund" not in str(s.status).lower() and not db.get_prime_cost(str(s.id)):
                 to_fill.append(s)
 
