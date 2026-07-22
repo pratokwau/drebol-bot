@@ -1673,10 +1673,13 @@ async def cb_minprice(call: types.CallbackQuery, state: FSMContext):
         if only_unlinked:
             items = {
                 iid: info for iid, info in items.items()
+                if isinstance(info, dict) and not get_item_offer_ids(info)
             }
         if not items:
             await call.message.edit_text(
-                f"❌ <b>Товары не найдены в боте</b>",
+                "✅ <b>Товаров без лотов не найдено</b>"
+                if only_unlinked else
+                "❌ <b>Товары не найдены в боте</b>",
                 parse_mode="HTML",
                 reply_markup=back_kb(f"mp_editoffers_{game_hash}")
             )
