@@ -470,7 +470,7 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
 
             try:
                 await bot.send_message(ADMIN_ID, text, reply_markup=kb.as_markup(), parse_mode=ParseMode.HTML)
-                await asyncio.sleep(3) 
+                await asyncio.sleep(2) 
             except Exception as e:
                 print(f"[SEND ERROR] {e}")
                 await asyncio.sleep(10)
