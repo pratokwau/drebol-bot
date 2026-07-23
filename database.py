@@ -54,6 +54,17 @@ class OrdersDatabase:
         )
         self.conn.commit()
 
+    def list_prime_costs(self, limit: int = 500):
+        self.cursor.execute(
+            "SELECT order_id, prime_cost FROM orders_data ORDER BY rowid DESC LIMIT ?",
+            (int(limit),),
+        )
+        return self.cursor.fetchall()
+
+    def delete_prime_cost(self, order_id):
+        self.cursor.execute("DELETE FROM orders_data WHERE order_id = ?", (order_id,))
+        self.conn.commit()
+
 
 class ProfitDatabase:
     def __init__(self, user_id: int, db_file: str | None = None):
