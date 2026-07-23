@@ -3,7 +3,7 @@
 Веб-панель работает поверх тех же файлов данных, что и бот:
 
 - `data/funpayacc.db` — Golden Key и User-Agent.
-- `data/ordersfp.db` — себестоимость заказов и журнал SaveProfit.
+- `data/ordersfp.db` — себестоимость заказов и журнал заказов.
 
 ## Запуск вручную
 

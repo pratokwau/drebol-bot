@@ -12,8 +12,12 @@
     <nav>
       <a href="/">Главная</a>
       <a href="/funpay">FunPay</a>
-      <a href="/profits">SaveProfit</a>
+      <a href="/orders">Заказы</a>
+      <a href="/settings">Настройки</a>
     </nav>
+    <form method="post" action="/logout" class="logout-form">
+      <button class="ghost" type="submit">Выйти</button>
+    </form>
   </aside>
   <main class="content">
     {% block content %}{% endblock %}

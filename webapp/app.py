@@ -2,40 +2,49 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from config import ADMIN_ID
-from database import ProfitDatabase, db, orders_db
+from database import ProfitDatabase, db, orders_db, web_db
+from handlers.funpay_admin import (
+    clean_price,
+    extract_order_amount,
+    fetch_funpay_sales,
+    get_auto_buy_prices,
+    make_funpay_account,
+)
 
 
 APP_ROOT = os.path.dirname(__file__)
 templates = Jinja2Templates(directory=os.path.join(APP_ROOT, "templates"))
-security = HTTPBasic()
 
 app = FastAPI(title="Drebolbot Web")
 app.mount("/static", StaticFiles(directory=os.path.join(APP_ROOT, "static")), name="static")
 
 
-def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    username = os.getenv("WEB_USERNAME", "admin")
-    password = os.getenv("WEB_PASSWORD", str(ADMIN_ID))
-    ok_user = secrets.compare_digest(credentials.username, username)
-    ok_pass = secrets.compare_digest(credentials.password, password)
-    if not (ok_user and ok_pass):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
-
-
 def redirect_to(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _login_pair() -> tuple[str, str]:
+    return os.getenv("WEB_USERNAME", "admin"), os.getenv("WEB_PASSWORD", str(ADMIN_ID))
+
+
+def _is_valid_login(username: str, password: str) -> bool:
+    good_user, good_pass = _login_pair()
+    return secrets.compare_digest(username, good_user) and secrets.compare_digest(password, good_pass)
+
+
+def require_session(request: Request):
+    session_id = request.cookies.get("drebol_session", "")
+    session = web_db.get_session(session_id) if session_id else None
+    if not session:
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
+    web_db.touch_session(session_id)
+    return {"session_id": session[0], "username": session[1]}
 
 
 def _money(value) -> float:
@@ -88,6 +97,15 @@ def _profit_stats(profits: list[dict], period: str = "day") -> dict:
     }
 
 
+def _all_profit_stats(profits: list[dict]) -> dict:
+    return {
+        "label": "Всего",
+        "count": len(profits),
+        "sell": sum(_money(p.get("sell_price")) for p in profits),
+        "profit": sum(_money(p.get("profit")) for p in profits),
+    }
+
+
 def _load_admin_profits() -> list[dict]:
     return ProfitDatabase(ADMIN_ID).load_profits()
 
@@ -102,118 +120,227 @@ def _list_prime_costs(limit: int = 500):
     return orders_db.cursor.fetchall()
 
 
-def _delete_prime_cost(order_id: str):
-    if hasattr(orders_db, "delete_prime_cost"):
-        orders_db.delete_prime_cost(order_id)
-        return
-    orders_db.cursor.execute("DELETE FROM orders_data WHERE order_id = ?", (order_id,))
-    orders_db.conn.commit()
+def _save_profit_from_order(order_id: str, sell_price: float, buy_price: float, order_date: str):
+    profit_db = ProfitDatabase(ADMIN_ID)
+    profits = profit_db.load_profits()
+    net_profit = (sell_price * 0.97) - buy_price
+    existing_idx = next(
+        (i for i, item in enumerate(profits) if f"FP #{order_id}" in str(item.get("type", ""))),
+        None,
+    )
+    entry = {
+        "type": f"FP #{order_id} (WEB)",
+        "buy_price": round(buy_price, 2),
+        "sell_price": round(sell_price, 2),
+        "profit": round(net_profit, 2),
+        "date": order_date or datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+    }
+    if existing_idx is None:
+        profits.append(entry)
+    else:
+        old_date = profits[existing_idx].get("date", "")
+        entry["date"] = order_date or old_date or entry["date"]
+        profits[existing_idx] = entry
+    profit_db.save_profits(profits)
+
+
+def _sale_game(sale) -> str:
+    subcategory_name = str(getattr(sale, "subcategory_name", "") or "").strip()
+    return subcategory_name.rsplit(",", 1)[0].strip() if subcategory_name else ""
+
+
+def _sale_date(sale) -> str:
+    return str(getattr(sale, "date", getattr(sale, "created_at", "")) or "")
+
+
+def _order_cards(limit: int = 120, sort: str = "date", mode: str = "all") -> tuple[list[dict], str]:
+    gk, ua = db.get_config()
+    if not gk:
+        return [], "Сначала настройте Golden Key в разделе FunPay."
+
+    try:
+        account = make_funpay_account(gk, ua)
+        sales = fetch_funpay_sales(account, limit=limit)
+    except Exception as exc:
+        return [], f"FunPay не отдал заказы: {exc}"
+
+    cards = []
+    for sale in sales:
+        order_id = str(getattr(sale, "id", ""))
+        if not order_id:
+            continue
+        status_text = str(getattr(sale, "status", "") or "")
+        if "refund" in status_text.lower():
+            continue
+
+        raw_price = getattr(sale, "price", getattr(sale, "amount", 0))
+        sell_price = _money(clean_price(raw_price))
+        product_name = getattr(sale, "description", getattr(sale, "product_name", "Без названия"))
+        order_game = _sale_game(sale)
+        order_date = _sale_date(sale)
+        order_amount = extract_order_amount(product_name)
+        cost = orders_db.get_prime_cost(order_id)
+
+        if mode == "unfilled" and cost is not None:
+            continue
+        if mode == "filled" and cost is None:
+            continue
+
+        variants = get_auto_buy_prices(product_name, order_game, order_amount)[:4] if cost is None else []
+        profit = (sell_price * 0.97) - _money(cost) if cost is not None else None
+        cards.append({
+            "id": order_id,
+            "status": status_text,
+            "date": order_date,
+            "game": order_game,
+            "product": product_name,
+            "sell_price": sell_price,
+            "cost": cost,
+            "profit": profit,
+            "variants": variants,
+        })
+
+    if sort == "profit":
+        cards.sort(key=lambda item: item["profit"] if item["profit"] is not None else -10**12, reverse=True)
+    elif sort == "unfilled":
+        cards.sort(key=lambda item: item["cost"] is None, reverse=True)
+    return cards, ""
+
+
+@app.get("/login")
+async def login_page(request: Request):
+    return templates.TemplateResponse(request=request, name="login.html", context={"error": ""})
+
+
+@app.post("/login")
+async def login(request: Request, username: str = Form(""), password: str = Form("")):
+    if not _is_valid_login(username.strip(), password):
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={"error": "Неверный логин или пароль"},
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    session_id = web_db.create_session(username.strip() or "admin")
+    response = redirect_to("/")
+    response.set_cookie("drebol_session", session_id, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
+    return response
+
+
+@app.post("/logout")
+async def logout(request: Request):
+    session_id = request.cookies.get("drebol_session", "")
+    if session_id:
+        web_db.revoke_session(session_id)
+    response = redirect_to("/login")
+    response.delete_cookie("drebol_session")
+    return response
+
+
+@app.head("/")
+async def dashboard_head():
+    return Response(status_code=200)
 
 
 @app.get("/")
-async def dashboard(request: Request, _: str = Depends(require_auth)):
+async def dashboard(request: Request, user=Depends(require_session)):
     gk, ua = db.get_config()
     profits = _load_admin_profits()
-    orders = _list_prime_costs(12)
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",
         context={
+            "user": user,
             "gk_set": bool(gk),
             "ua_set": bool(ua),
-            "orders": orders,
-            "total_profits": len(profits),
+            "all_stats": _all_profit_stats(profits),
             "day_stats": _profit_stats(profits, "day"),
+            "week_stats": _profit_stats(profits, "week"),
             "month_stats": _profit_stats(profits, "month"),
         },
     )
 
 
 @app.get("/funpay")
-async def funpay_page(request: Request, _: str = Depends(require_auth)):
+async def funpay_page(request: Request, user=Depends(require_session)):
     gk, ua = db.get_config()
     return templates.TemplateResponse(
         request=request,
         name="funpay.html",
-        context={
-            "gk": gk or "",
-            "ua": ua or "",
-            "orders": _list_prime_costs(200),
-        },
+        context={"user": user, "gk": gk or "", "ua": ua or ""},
     )
 
 
 @app.post("/funpay/account")
-async def update_funpay_account(
-    gk: str = Form(""),
-    ua: str = Form(""),
-    _: str = Depends(require_auth),
-):
+async def update_funpay_account(gk: str = Form(""), ua: str = Form(""), user=Depends(require_session)):
     db.update_config(gk=gk.strip() or None, ua=ua.strip() or None)
     return redirect_to("/funpay")
 
 
-@app.post("/funpay/orders")
-async def update_order_cost(
-    order_id: str = Form(...),
-    prime_cost: str = Form(...),
-    _: str = Depends(require_auth),
+@app.get("/orders")
+async def orders_page(
+    request: Request,
+    sort: str = "date",
+    mode: str = "all",
+    limit: int = 120,
+    user=Depends(require_session),
 ):
-    orders_db.set_prime_cost(order_id.strip().lstrip("#"), _money(prime_cost.replace(",", ".")))
-    return redirect_to("/funpay")
-
-
-@app.post("/funpay/orders/delete")
-async def delete_order_cost(order_id: str = Form(...), _: str = Depends(require_auth)):
-    _delete_prime_cost(order_id.strip().lstrip("#"))
-    return redirect_to("/funpay")
-
-
-@app.get("/profits")
-async def profits_page(request: Request, period: str = "day", _: str = Depends(require_auth)):
-    profits = _load_admin_profits()
+    cards, error = _order_cards(limit=max(10, min(limit, 500)), sort=sort, mode=mode)
     return templates.TemplateResponse(
         request=request,
-        name="profits.html",
+        name="orders.html",
         context={
-            "profits": list(reversed(list(enumerate(profits))))[:200],
-            "stats": _profit_stats(profits, period),
-            "period": period,
-            "now_text": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+            "user": user,
+            "cards": cards,
+            "error": error,
+            "sort": sort,
+            "mode": mode,
+            "limit": limit,
+            "stats": _all_profit_stats(_load_admin_profits()),
         },
     )
 
 
-@app.post("/profits/add")
-async def add_profit(
-    profit_type: str = Form("FunPay"),
-    buy_price: str = Form("0"),
+@app.get("/profits")
+async def old_profits_redirect(user=Depends(require_session)):
+    return redirect_to("/orders")
+
+
+@app.post("/orders/save-cost")
+async def save_order_cost(
+    order_id: str = Form(...),
+    buy_price: str = Form(...),
     sell_price: str = Form("0"),
-    profit: str = Form(""),
-    date: str = Form(""),
-    _: str = Depends(require_auth),
+    order_date: str = Form(""),
+    user=Depends(require_session),
 ):
-    profit_db = ProfitDatabase(ADMIN_ID)
-    profits = profit_db.load_profits()
+    clean_order_id = order_id.strip().lstrip("#")
     buy = _money(buy_price.replace(",", "."))
     sell = _money(sell_price.replace(",", "."))
-    clean_profit = _money(profit.replace(",", ".")) if profit.strip() else (sell * 0.97) - buy
-    profits.append({
-        "type": profit_type.strip() or "FunPay",
-        "buy_price": round(buy, 2),
-        "sell_price": round(sell, 2),
-        "profit": round(clean_profit, 2),
-        "date": date.strip() or datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
-    })
-    profit_db.save_profits(profits)
-    return redirect_to("/profits")
+    orders_db.set_prime_cost(clean_order_id, buy)
+    _save_profit_from_order(clean_order_id, sell, buy, order_date)
+    return redirect_to("/orders")
 
 
-@app.post("/profits/delete")
-async def delete_profit(index: int = Form(...), _: str = Depends(require_auth)):
-    profit_db = ProfitDatabase(ADMIN_ID)
-    profits = profit_db.load_profits()
-    if 0 <= index < len(profits):
-        profits.pop(index)
-        profit_db.save_profits(profits)
-    return redirect_to("/profits")
+@app.get("/settings")
+async def settings_page(request: Request, user=Depends(require_session)):
+    return templates.TemplateResponse(
+        request=request,
+        name="settings.html",
+        context={
+            "user": user,
+            "sessions": web_db.list_sessions(),
+            "current_session": user["session_id"],
+            "login_username": _login_pair()[0],
+        },
+    )
+
+
+@app.post("/settings/revoke")
+async def revoke_session(session_id: str = Form(...), user=Depends(require_session)):
+    web_db.revoke_session(session_id)
+    if session_id == user["session_id"]:
+        response = redirect_to("/login")
+        response.delete_cookie("drebol_session")
+        return response
+    return redirect_to("/settings")

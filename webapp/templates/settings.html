@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <h1>Настройки</h1>
+  <p>Входы на сайт и активные сессии.</p>
+</header>
+
+<section class="panel">
+  <h2>Авторизация</h2>
+  <p>Текущий логин: <b>{{ login_username }}</b></p>
+</section>
+
+<section class="panel">
+  <h2>Входы на сайт</h2>
+  <table>
+    <thead><tr><th>Пользователь</th><th>Создана</th><th>Последняя активность</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+    {% for session_id, username, created_at, last_seen, revoked in sessions %}
+      <tr>
+        <td>{{ username }}</td>
+        <td>{{ created_at }}</td>
+        <td>{{ last_seen }}</td>
+        <td>{{ "отозвана" if revoked else "активна" }}</td>
+        <td>
+          {% if not revoked %}
+            <form method="post" action="/settings/revoke">
+              <input type="hidden" name="session_id" value="{{ session_id }}">
+              <button class="ghost" type="submit">{{ "Выйти" if session_id == current_session else "Удалить вход" }}</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5">Пока нет входов.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

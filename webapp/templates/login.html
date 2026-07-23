@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход · Drebolbot</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-body">
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="login-mark">Drebolbot</div>
+      <h1>Вход в панель</h1>
+      <p>Управление заказами, FunPay и прибылью.</p>
+      {% if error %}
+        <div class="alert">{{ error }}</div>
+      {% endif %}
+      <form method="post" action="/login">
+        <label>Логин<input name="username" autocomplete="username" autofocus></label>
+        <label>Пароль<input name="password" type="password" autocomplete="current-password"></label>
+        <button type="submit">Войти</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <h1>Заказы</h1>
+  <p>Карточки FunPay, себестоимость и автоподбор закупа.</p>
+</header>
+
+<section class="toolbar">
+  <form method="get" action="/orders" class="inline-form">
+    <select name="mode">
+      <option value="all" {{ "selected" if mode == "all" else "" }}>Все</option>
+      <option value="unfilled" {{ "selected" if mode == "unfilled" else "" }}>Без закупа</option>
+      <option value="filled" {{ "selected" if mode == "filled" else "" }}>С закупом</option>
+    </select>
+    <select name="sort">
+      <option value="date" {{ "selected" if sort == "date" else "" }}>Новые</option>
+      <option value="unfilled" {{ "selected" if sort == "unfilled" else "" }}>Сначала без закупа</option>
+      <option value="profit" {{ "selected" if sort == "profit" else "" }}>По прибыли</option>
+    </select>
+    <input name="limit" value="{{ limit }}" placeholder="Лимит">
+    <button type="submit">Показать</button>
+  </form>
+</section>
+
+{% if error %}
+  <section class="panel alert">{{ error }}</section>
+{% endif %}
+
+<section class="grid cards-grid">
+  {% for card in cards %}
+    <article class="order-card">
+      <div class="order-top">
+        <div>
+          <span class="label">Заказ #{{ card.id }}</span>
+          <h2>{{ card.game or "Без игры" }}</h2>
+        </div>
+        <span class="{{ 'pill ok' if card.cost is not none else 'pill warn' }}">
+          {{ "закуп есть" if card.cost is not none else "без закупа" }}
+        </span>
+      </div>
+      <p class="order-product">{{ card.product }}</p>
+      <div class="order-meta">
+        <span>{{ card.date }}</span>
+        <span>Продажа: <b>{{ "%.2f"|format(card.sell_price) }} ₽</b></span>
+        <span>Закуп: <b>{{ "%.2f"|format(card.cost or 0) }} ₽</b></span>
+        <span>Чистыми:
+          <b>{{ "%.2f"|format(card.profit) if card.profit is not none else "—" }} ₽</b>
+        </span>
+      </div>
+
+      {% if card.variants %}
+        <div class="variants">
+          {% for variant in card.variants %}
+            <form method="post" action="/orders/save-cost">
+              <input type="hidden" name="order_id" value="{{ card.id }}">
+              <input type="hidden" name="buy_price" value="{{ variant.total_cost }}">
+              <input type="hidden" name="sell_price" value="{{ card.sell_price }}">
+              <input type="hidden" name="order_date" value="{{ card.date }}">
+              <button type="submit">
+                {{ variant.title }} · {{ variant.cashback_label }} · {{ "%.2f"|format(variant.total_cost) }} ₽
+              </button>
+            </form>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" action="/orders/save-cost" class="manual-cost">
+        <input type="hidden" name="order_id" value="{{ card.id }}">
+        <input type="hidden" name="sell_price" value="{{ card.sell_price }}">
+        <input type="hidden" name="order_date" value="{{ card.date }}">
+        <input name="buy_price" placeholder="Ввести закуп">
+        <button class="ghost" type="submit">Сохранить</button>
+      </form>
+    </article>
+  {% else %}
+    <article class="panel">Заказы не найдены.</article>
+  {% endfor %}
+</section>
+{% endblock %}
