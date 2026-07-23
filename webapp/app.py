@@ -330,9 +330,15 @@ async def orders_page(
     sort: str = "date",
     mode: str = "all",
     limit: int = 120,
+    q: str = "",
     user=Depends(require_session),
 ):
     cards, error = _order_cards(limit=max(10, min(limit, 500)), sort=sort, mode=mode)
+    if q.strip():
+        query = q.strip().lower()
+        query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
+        query = query.strip("/").lstrip("#").lower()
+        cards = [c for c in cards if query in str(c["id"]).lower()]
     return templates.TemplateResponse(
         request=request,
         name="orders.html",
@@ -343,14 +349,84 @@ async def orders_page(
             "sort": sort,
             "mode": mode,
             "limit": limit,
+            "q": q,
             "stats": _all_profit_stats(_load_admin_profits()),
         },
     )
 
 
 @app.get("/profits")
-async def old_profits_redirect(user=Depends(require_session)):
-    return redirect_to("/orders")
+async def profits_page(request: Request, page: int = 0, user=Depends(require_session)):
+    profits = _load_admin_profits()
+    sorted_profits = sorted(profits, key=lambda x: str(x.get("date", "")), reverse=True)
+    per_page = 15
+    total = len(sorted_profits)
+    total_pages = max(1, (total - 1) // per_page + 1)
+    page = max(0, min(page, total_pages - 1))
+    start = page * per_page
+    end = start + per_page
+    page_items = sorted_profits[start:end]
+    all_stats = _all_profit_stats(profits)
+    return templates.TemplateResponse(
+        request=request,
+        name="profits.html",
+        context={
+            "user": user,
+            "profits": page_items,
+            "page": page,
+            "total_pages": total_pages,
+            "total": total,
+            "all_stats": all_stats,
+        },
+    )
+
+
+@app.post("/profits/add")
+async def add_profit(request: Request, user=Depends(require_session)):
+    try:
+        form = await request.form()
+        ptype = str(form.get("type", "")).strip()
+        buy = _money(str(form.get("buy_price", "0")).replace(",", "."))
+        sell = _money(str(form.get("sell_price", "0")).replace(",", "."))
+        profit_val = round((sell * 0.97) - buy, 2)
+        date = str(form.get("date", "")) or datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        if not ptype:
+            return redirect_to("/profits")
+        profit_db = ProfitDatabase(ADMIN_ID)
+        profits = profit_db.load_profits()
+        profits.append({
+            "type": ptype,
+            "buy_price": round(buy, 2),
+            "sell_price": round(sell, 2),
+            "profit": profit_val,
+            "date": date,
+        })
+        profit_db.save_profits(profits)
+    except Exception as e:
+        print(f"[PROFIT ADD ERROR] {e}")
+    return redirect_to("/profits")
+
+
+@app.post("/profits/delete")
+async def delete_profit(request: Request, user=Depends(require_session)):
+    try:
+        form = await request.form()
+        idx = int(str(form.get("index", "-1")))
+        profit_db = ProfitDatabase(ADMIN_ID)
+        profits = profit_db.load_profits()
+        sorted_profits = sorted(profits, key=lambda x: str(x.get("date", "")), reverse=True)
+        if 0 <= idx < len(sorted_profits):
+            to_remove = sorted_profits[idx]
+            for i, p in enumerate(profits):
+                if (p.get("type") == to_remove.get("type") and
+                    p.get("date") == to_remove.get("date") and
+                    p.get("buy_price") == to_remove.get("buy_price")):
+                    profits.pop(i)
+                    break
+            profit_db.save_profits(profits)
+    except Exception as e:
+        print(f"[PROFIT DELETE ERROR] {e}")
+    return redirect_to("/profits")
 
 
 @app.post("/orders/save-cost")
