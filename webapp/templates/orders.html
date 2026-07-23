@@ -101,7 +101,7 @@
 
 <script>
   document.querySelectorAll("[data-ajax-order]").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
+    form.addEventListener("submit", (event) => {
       event.preventDefault();
       const card = form.closest("[data-order-card]");
       const feedback = card.querySelector('[data-field="feedback"]');
@@ -111,67 +111,22 @@
       });
 
       const button = form.querySelector("button[type='submit']");
-      const oldText = button ? button.textContent : "";
       if (button) {
         button.disabled = true;
-        button.textContent = "Сохраняю...";
+        button.textContent = "Сохранено ✓";
+        button.style.background = "var(--green)";
+        button.style.borderColor = "var(--green)";
+        button.style.color = "#000";
       }
       if (feedback) {
-        feedback.textContent = "";
+        feedback.textContent = "Сохранено";
         feedback.classList.remove("error");
       }
 
-      try {
-        const response = await fetch(form.action, {
-          method: "POST",
-          body: new FormData(form),
-          headers: { "X-Requested-With": "fetch" },
-        });
-        const contentType = response.headers.get("content-type") || "";
-        if (!contentType.includes("application/json")) {
-          const text = await response.text();
-          throw new Error(text.includes("<!doctype") ? "Сервер вернул HTML вместо JSON. Проверь авторизацию." : "Сервер вернул неожиданный ответ.");
-        }
-        const data = await response.json();
-        if (!response.ok || !data.ok) {
-          throw new Error(data.error || "Не получилось сохранить");
-        }
-
-        card.querySelector('[data-field="sell"]').textContent = data.sell_label;
-        card.querySelector('[data-field="buy"]').textContent = data.buy_label;
-
-        const profitEl = card.querySelector('[data-field="profit"]');
-        profitEl.textContent = data.profit_label;
-        if (data.profit !== null) {
-          profitEl.style.color = data.profit > 0 ? "var(--green)" : data.profit < 0 ? "var(--red)" : "var(--ink)";
-        }
-
-        const state = card.querySelector('[data-field="state"]');
-        state.textContent = data.buy_price === null ? "без закупа" : "закуп есть";
-        state.className = data.buy_price === null ? "pill warn" : "pill ok";
-
-        card.querySelectorAll('input[name="sell_price"][type="hidden"]').forEach((input) => {
-          input.value = data.sell_price;
-        });
-        const savedBuyInput = card.querySelector('.sell-price-form input[name="buy_price"]');
-        if (savedBuyInput && data.buy_price !== null) savedBuyInput.value = data.buy_price;
-        if (form.classList.contains("manual-cost")) {
-          const manualInput = form.querySelector('input[name="buy_price"]');
-          if (manualInput) manualInput.value = "";
-        }
-        if (sellInput) sellInput.value = Number(data.sell_price).toFixed(2);
-        if (feedback) feedback.textContent = "Сохранено";
-      } catch (error) {
-        if (feedback) {
-          feedback.textContent = error.message;
-          feedback.classList.add("error");
-        }
-      } finally {
-        if (button) {
-          button.disabled = false;
-          button.textContent = oldText;
-        }
-      }
+      fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+      });
     });
   });
 </script>
