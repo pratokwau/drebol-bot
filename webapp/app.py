@@ -92,11 +92,29 @@ def _load_admin_profits() -> list[dict]:
     return ProfitDatabase(ADMIN_ID).load_profits()
 
 
+def _list_prime_costs(limit: int = 500):
+    if hasattr(orders_db, "list_prime_costs"):
+        return orders_db.list_prime_costs(limit)
+    orders_db.cursor.execute(
+        "SELECT order_id, prime_cost FROM orders_data ORDER BY rowid DESC LIMIT ?",
+        (int(limit),),
+    )
+    return orders_db.cursor.fetchall()
+
+
+def _delete_prime_cost(order_id: str):
+    if hasattr(orders_db, "delete_prime_cost"):
+        orders_db.delete_prime_cost(order_id)
+        return
+    orders_db.cursor.execute("DELETE FROM orders_data WHERE order_id = ?", (order_id,))
+    orders_db.conn.commit()
+
+
 @app.get("/")
 async def dashboard(request: Request, _: str = Depends(require_auth)):
     gk, ua = db.get_config()
     profits = _load_admin_profits()
-    orders = orders_db.list_prime_costs(12)
+    orders = _list_prime_costs(12)
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -120,7 +138,7 @@ async def funpay_page(request: Request, _: str = Depends(require_auth)):
             "request": request,
             "gk": gk or "",
             "ua": ua or "",
-            "orders": orders_db.list_prime_costs(200),
+            "orders": _list_prime_costs(200),
         },
     )
 
@@ -147,7 +165,7 @@ async def update_order_cost(
 
 @app.post("/funpay/orders/delete")
 async def delete_order_cost(order_id: str = Form(...), _: str = Depends(require_auth)):
-    orders_db.delete_prime_cost(order_id.strip().lstrip("#"))
+    _delete_prime_cost(order_id.strip().lstrip("#"))
     return redirect_to("/funpay")
 
 
