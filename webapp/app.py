@@ -28,11 +28,6 @@ app.mount("/static", StaticFiles(directory=os.path.join(APP_ROOT, "static")), na
 @app.exception_handler(HTTPException)
 async def ajax_exception_handler(request: Request, exc: HTTPException):
     is_ajax = request.headers.get("x-requested-with", "").lower() == "fetch"
-    if is_ajax and exc.status_code in (303, 302, 301, 307, 308):
-        return JSONResponse(
-            {"ok": False, "error": "Сессия истекла. Обновите страницу."},
-            status_code=401,
-        )
     if is_ajax:
         return JSONResponse(
             {"ok": False, "error": exc.detail or "Ошибка"},
@@ -41,6 +36,17 @@ async def ajax_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code in (303, 302, 301, 307, 308):
         return RedirectResponse(exc.headers.get("Location", "/login"), status_code=exc.status_code)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    is_ajax = request.headers.get("x-requested-with", "").lower() == "fetch"
+    if is_ajax:
+        return JSONResponse(
+            {"ok": False, "error": str(exc)[:500]},
+            status_code=500,
+        )
+    return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
 
 
 def redirect_to(path: str) -> RedirectResponse:
@@ -357,14 +363,17 @@ async def save_order_cost(
     ajax: int = 0,
     user=Depends(require_session),
 ):
-    clean_order_id = order_id.strip().lstrip("#")
-    buy = _money(buy_price.replace(",", "."))
-    sell = _money(sell_price.replace(",", "."))
-    orders_db.set_prime_cost(clean_order_id, buy)
-    if hasattr(orders_db, "set_sell_price"):
-        orders_db.set_sell_price(clean_order_id, sell, order_date)
-    payload = _order_payload(clean_order_id, sell, buy, order_date)
-    return JSONResponse(payload)
+    try:
+        clean_order_id = order_id.strip().lstrip("#")
+        buy = _money(buy_price.replace(",", "."))
+        sell = _money(sell_price.replace(",", "."))
+        orders_db.set_prime_cost(clean_order_id, buy)
+        if hasattr(orders_db, "set_sell_price"):
+            orders_db.set_sell_price(clean_order_id, sell, order_date)
+        payload = _order_payload(clean_order_id, sell, buy, order_date)
+        return JSONResponse(payload)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
 
 
 @app.post("/orders/save-price")
@@ -377,28 +386,31 @@ async def save_order_sell_price(
     ajax: int = 0,
     user=Depends(require_session),
 ):
-    clean_order_id = order_id.strip().lstrip("#")
-    sell = _money(sell_price.replace(",", "."))
-    existing_buy = orders_db.get_prime_cost(clean_order_id)
-    buy = _money(buy_price.replace(",", ".")) if str(buy_price or "").strip() else _money(existing_buy)
-    if hasattr(orders_db, "set_sell_price"):
-        orders_db.set_sell_price(clean_order_id, sell, order_date)
-    if str(buy_price or "").strip():
-        orders_db.set_prime_cost(clean_order_id, buy)
-    if buy > 0 or existing_buy is not None:
-        payload = _order_payload(clean_order_id, sell, buy, order_date)
-    else:
-        payload = {
-            "ok": True,
-            "order_id": clean_order_id,
-            "buy_price": None,
-            "sell_price": round(sell, 2),
-            "profit": None,
-            "profit_label": "— ₽",
-            "buy_label": "0.00 ₽",
-            "sell_label": f"{sell:.2f} ₽",
-        }
-    return JSONResponse(payload)
+    try:
+        clean_order_id = order_id.strip().lstrip("#")
+        sell = _money(sell_price.replace(",", "."))
+        existing_buy = orders_db.get_prime_cost(clean_order_id)
+        buy = _money(buy_price.replace(",", ".")) if str(buy_price or "").strip() else _money(existing_buy)
+        if hasattr(orders_db, "set_sell_price"):
+            orders_db.set_sell_price(clean_order_id, sell, order_date)
+        if str(buy_price or "").strip():
+            orders_db.set_prime_cost(clean_order_id, buy)
+        if buy > 0 or existing_buy is not None:
+            payload = _order_payload(clean_order_id, sell, buy, order_date)
+        else:
+            payload = {
+                "ok": True,
+                "order_id": clean_order_id,
+                "buy_price": None,
+                "sell_price": round(sell, 2),
+                "profit": None,
+                "profit_label": "— ₽",
+                "buy_label": "0.00 ₽",
+                "sell_label": f"{sell:.2f} ₽",
+            }
+        return JSONResponse(payload)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
 
 
 @app.get("/settings")
