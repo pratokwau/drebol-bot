@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block title %}Заказы · Drebolbot{% endblock %}
 {% block content %}
 <header class="page-head">
   <h1>Заказы</h1>
@@ -8,17 +9,20 @@
 <section class="toolbar">
   <form method="get" action="/orders" class="inline-form">
     <select name="mode">
-      <option value="all" {{ "selected" if mode == "all" else "" }}>Все</option>
+      <option value="all" {{ "selected" if mode == "all" else "" }}>Все заказы</option>
       <option value="unfilled" {{ "selected" if mode == "unfilled" else "" }}>Без закупа</option>
       <option value="filled" {{ "selected" if mode == "filled" else "" }}>С закупом</option>
     </select>
     <select name="sort">
-      <option value="date" {{ "selected" if sort == "date" else "" }}>Новые</option>
+      <option value="date" {{ "selected" if sort == "date" else "" }}>Новые сначала</option>
       <option value="unfilled" {{ "selected" if sort == "unfilled" else "" }}>Сначала без закупа</option>
       <option value="profit" {{ "selected" if sort == "profit" else "" }}>По прибыли</option>
     </select>
-    <input name="limit" value="{{ limit }}" placeholder="Лимит">
-    <button type="submit">Показать</button>
+    <input name="limit" value="{{ limit }}" placeholder="Лимит" style="max-width:100px;">
+    <button type="submit">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      Показать
+    </button>
   </form>
 </section>
 
@@ -44,7 +48,9 @@
         <span>Продажа: <b data-field="sell">{{ "%.2f"|format(card.sell_price) }} ₽</b></span>
         <span>Закуп: <b data-field="buy">{{ "%.2f"|format(card.cost or 0) }} ₽</b></span>
         <span>Чистыми:
-          <b data-field="profit">{{ "%.2f"|format(card.profit) if card.profit is not none else "—" }} ₽</b>
+          <b data-field="profit" style="color: {{ 'var(--green)' if card.profit and card.profit > 0 else 'var(--red)' if card.profit and card.profit < 0 else 'var(--ink)' }}">
+            {{ "%.2f"|format(card.profit) if card.profit is not none else "—" }} ₽
+          </b>
         </span>
       </div>
 
@@ -58,6 +64,7 @@
               <input type="hidden" name="order_date" value="{{ card.date }}">
               <input type="hidden" name="ajax" value="1">
               <button type="submit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 {{ variant.title }} · {{ variant.cashback_label }} · {{ "%.2f"|format(variant.total_cost) }} ₽
               </button>
             </form>
@@ -79,13 +86,16 @@
         <input type="hidden" name="sell_price" value="{{ card.sell_price }}" data-sync-sell>
         <input type="hidden" name="order_date" value="{{ card.date }}">
         <input type="hidden" name="ajax" value="1">
-        <input name="buy_price" placeholder="Ввести закуп">
+        <input name="buy_price" placeholder="Ввести закуп вручную">
         <button class="ghost" type="submit">Сохранить</button>
       </form>
       <div class="order-feedback" data-field="feedback"></div>
     </article>
   {% else %}
-    <article class="panel">Заказы не найдены.</article>
+    <article class="panel" style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted);">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;margin-bottom:12px;"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+      <br>Заказы не найдены.
+    </article>
   {% endfor %}
 </section>
 
@@ -120,7 +130,7 @@
         const contentType = response.headers.get("content-type") || "";
         if (!contentType.includes("application/json")) {
           const text = await response.text();
-          throw new Error(text.includes("<!doctype") ? "Сервер вернул HTML вместо JSON. Проверь авторизацию или обнови сайт на сервере." : "Сервер вернул неожиданный ответ.");
+          throw new Error(text.includes("<!doctype") ? "Сервер вернул HTML вместо JSON. Проверь авторизацию." : "Сервер вернул неожиданный ответ.");
         }
         const data = await response.json();
         if (!response.ok || !data.ok) {
@@ -129,7 +139,12 @@
 
         card.querySelector('[data-field="sell"]').textContent = data.sell_label;
         card.querySelector('[data-field="buy"]').textContent = data.buy_label;
-        card.querySelector('[data-field="profit"]').textContent = data.profit_label;
+
+        const profitEl = card.querySelector('[data-field="profit"]');
+        profitEl.textContent = data.profit_label;
+        if (data.profit !== null) {
+          profitEl.style.color = data.profit > 0 ? "var(--green)" : data.profit < 0 ? "var(--red)" : "var(--ink)";
+        }
 
         const state = card.querySelector('[data-field="state"]');
         state.textContent = data.buy_price === null ? "без закупа" : "закуп есть";
@@ -145,7 +160,7 @@
           if (manualInput) manualInput.value = "";
         }
         if (sellInput) sellInput.value = Number(data.sell_price).toFixed(2);
-        if (feedback) feedback.textContent = "Сохранено без перезагрузки страницы";
+        if (feedback) feedback.textContent = "Сохранено";
       } catch (error) {
         if (feedback) {
           feedback.textContent = error.message;

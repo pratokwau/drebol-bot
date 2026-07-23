@@ -1,27 +1,40 @@
 {% extends "base.html" %}
+{% block title %}Дашборд · Drebolbot{% endblock %}
 {% block content %}
 <header class="page-head">
-  <h1>Статистика</h1>
-  <p>Чистая прибыль, сумма продаж и количество заказов.</p>
+  <h1>Дашборд</h1>
+  <p>Статистика прибыли и быстрые действия.</p>
 </header>
 
 <section class="grid">
   <article class="card">
+    <div class="card-icon purple">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+    </div>
     <span class="label">Сегодня</span>
     <strong>{{ "%.2f"|format(day_stats.profit) }} ₽</strong>
     <p>{{ day_stats.count }} заказов · {{ "%.2f"|format(day_stats.sell) }} ₽ продаж</p>
   </article>
   <article class="card">
+    <div class="card-icon green">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+    </div>
     <span class="label">Неделя</span>
     <strong>{{ "%.2f"|format(week_stats.profit) }} ₽</strong>
     <p>{{ week_stats.count }} заказов · {{ "%.2f"|format(week_stats.sell) }} ₽ продаж</p>
   </article>
   <article class="card">
+    <div class="card-icon yellow">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+    </div>
     <span class="label">Месяц</span>
     <strong>{{ "%.2f"|format(month_stats.profit) }} ₽</strong>
     <p>{{ month_stats.count }} заказов · {{ "%.2f"|format(month_stats.sell) }} ₽ продаж</p>
   </article>
   <article class="card">
+    <div class="card-icon blue">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+    </div>
     <span class="label">Всего</span>
     <strong>{{ "%.2f"|format(all_stats.profit) }} ₽</strong>
     <p>{{ all_stats.count }} заказов · {{ "%.2f"|format(all_stats.sell) }} ₽ продаж</p>
@@ -30,16 +43,34 @@
 
 <section class="grid two">
   <article class="panel">
-    <h2>FunPay</h2>
-    <p class="big-status">{{ "Настроен" if gk_set and ua_set else "Не полностью настроен" }}</p>
-    <p>Golden Key: {{ "есть" if gk_set else "нет" }} · User-Agent: {{ "есть" if ua_set else "нет" }}</p>
+    <h2>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
+      FunPay
+    </h2>
+    <p class="big-status">
+      <span class="status-dot {{ 'on' if gk_set and ua_set else 'off' }}"></span>
+      {{ "Настроен" if gk_set and ua_set else "Не полностью настроен" }}
+    </p>
+    <p style="color: var(--muted); font-size: 14px;">Golden Key: {{ "есть" if gk_set else "нет" }} · User-Agent: {{ "есть" if ua_set else "нет" }}</p>
   </article>
   <article class="panel">
-    <h2>Быстрый переход</h2>
+    <h2>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+      Быстрый переход
+    </h2>
     <div class="tabs">
-      <a href="/orders?mode=unfilled">Незаполненные</a>
-      <a href="/orders?sort=profit">По прибыли</a>
-      <a href="/funpay">Настроить FunPay</a>
+      <a href="/orders?mode=unfilled">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        Незаполненные
+      </a>
+      <a href="/orders?sort=profit">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+        По прибыли
+      </a>
+      <a href="/funpay">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4"></path></svg>
+        Настроить FunPay
+      </a>
     </div>
   </article>
 </section>

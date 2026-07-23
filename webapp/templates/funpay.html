@@ -1,16 +1,31 @@
 {% extends "base.html" %}
+{% block title %}FunPay · Drebolbot{% endblock %}
 {% block content %}
 <header class="page-head">
   <h1>FunPay</h1>
-  <p>Только данные аккаунта для работы с API.</p>
+  <p>Данные аккаунта для работы с API FunPay.</p>
 </header>
 
 <section class="panel">
-  <h2>Данные аккаунта</h2>
+  <h2>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    Данные аккаунта
+  </h2>
   <form method="post" action="/funpay/account" class="form-grid">
-    <label>Golden Key<input name="gk" value="{{ gk }}" autocomplete="off"></label>
-    <label>User-Agent<input name="ua" value="{{ ua }}" autocomplete="off"></label>
-    <button type="submit">Сохранить</button>
+    <label>
+      Golden Key
+      <input name="gk" value="{{ gk }}" autocomplete="off" placeholder="Вставьте Golden Key">
+    </label>
+    <label>
+      User-Agent
+      <input name="ua" value="{{ ua }}" autocomplete="off" placeholder="Mozilla/5.0 ...">
+    </label>
+    <div style="grid-column:1/-1;">
+      <button type="submit">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        Сохранить
+      </button>
+    </div>
   </form>
 </section>
 {% endblock %}

@@ -1,37 +1,52 @@
 {% extends "base.html" %}
+{% block title %}Настройки · Drebolbot{% endblock %}
 {% block content %}
 <header class="page-head">
   <h1>Настройки</h1>
-  <p>Входы на сайт и активные сессии.</p>
+  <p>Управление сессиями и параметры доступа.</p>
 </header>
 
 <section class="panel">
-  <h2>Авторизация</h2>
-  <p>Текущий логин: <b>{{ login_username }}</b></p>
+  <h2>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+    Авторизация
+  </h2>
+  <p style="color:var(--ink-2);font-size:14px;">Текущий логин: <b style="color:var(--accent);">{{ login_username }}</b></p>
 </section>
 
 <section class="panel">
-  <h2>Входы на сайт</h2>
+  <h2>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+    Активные сессии
+  </h2>
   <table>
     <thead><tr><th>Пользователь</th><th>Создана</th><th>Последняя активность</th><th>Статус</th><th></th></tr></thead>
     <tbody>
     {% for session_id, username, created_at, last_seen, revoked in sessions %}
       <tr>
-        <td>{{ username }}</td>
-        <td>{{ created_at }}</td>
-        <td>{{ last_seen }}</td>
-        <td>{{ "отозвана" if revoked else "активна" }}</td>
+        <td><b>{{ username }}</b></td>
+        <td style="color:var(--muted);font-size:13px;">{{ created_at }}</td>
+        <td style="color:var(--muted);font-size:13px;">{{ last_seen }}</td>
+        <td>
+          {% if revoked %}
+            <span class="pill warn">отозвана</span>
+          {% else %}
+            <span class="pill ok"><span class="status-dot on"></span>активна</span>
+          {% endif %}
+        </td>
         <td>
           {% if not revoked %}
-            <form method="post" action="/settings/revoke">
+            <form method="post" action="/settings/revoke" style="display:inline;">
               <input type="hidden" name="session_id" value="{{ session_id }}">
-              <button class="ghost" type="submit">{{ "Выйти" if session_id == current_session else "Удалить вход" }}</button>
+              <button class="{{ 'danger' if session_id != current_session else 'ghost' }}" type="submit">
+                {{ "Выйти" if session_id == current_session else "Удалить" }}
+              </button>
             </form>
           {% endif %}
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="5">Пока нет входов.</td></tr>
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">Пока нет входов.</td></tr>
     {% endfor %}
     </tbody>
   </table>
