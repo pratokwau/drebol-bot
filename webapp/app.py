@@ -116,9 +116,9 @@ async def dashboard(request: Request, _: str = Depends(require_auth)):
     profits = _load_admin_profits()
     orders = _list_prime_costs(12)
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
+        request=request,
+        name="dashboard.html",
+        context={
             "gk_set": bool(gk),
             "ua_set": bool(ua),
             "orders": orders,
@@ -133,9 +133,9 @@ async def dashboard(request: Request, _: str = Depends(require_auth)):
 async def funpay_page(request: Request, _: str = Depends(require_auth)):
     gk, ua = db.get_config()
     return templates.TemplateResponse(
-        "funpay.html",
-        {
-            "request": request,
+        request=request,
+        name="funpay.html",
+        context={
             "gk": gk or "",
             "ua": ua or "",
             "orders": _list_prime_costs(200),
@@ -173,9 +173,9 @@ async def delete_order_cost(order_id: str = Form(...), _: str = Depends(require_
 async def profits_page(request: Request, period: str = "day", _: str = Depends(require_auth)):
     profits = _load_admin_profits()
     return templates.TemplateResponse(
-        "profits.html",
-        {
-            "request": request,
+        request=request,
+        name="profits.html",
+        context={
             "profits": list(reversed(list(enumerate(profits))))[:200],
             "stats": _profit_stats(profits, period),
             "period": period,
