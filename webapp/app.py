@@ -336,6 +336,7 @@ async def save_order_cost(
     buy_price: str = Form(...),
     sell_price: str = Form("0"),
     order_date: str = Form(""),
+    ajax: int = 0,
     user=Depends(require_session),
 ):
     clean_order_id = order_id.strip().lstrip("#")
@@ -345,7 +346,7 @@ async def save_order_cost(
     if hasattr(orders_db, "set_sell_price"):
         orders_db.set_sell_price(clean_order_id, sell, order_date)
     payload = _order_payload(clean_order_id, sell, buy, order_date)
-    if _wants_json(request):
+    if ajax or _wants_json(request):
         return JSONResponse(payload)
     return redirect_to("/orders")
 
@@ -357,6 +358,7 @@ async def save_order_sell_price(
     sell_price: str = Form(...),
     buy_price: str = Form(""),
     order_date: str = Form(""),
+    ajax: int = 0,
     user=Depends(require_session),
 ):
     clean_order_id = order_id.strip().lstrip("#")
@@ -380,7 +382,7 @@ async def save_order_sell_price(
             "buy_label": "0.00 ₽",
             "sell_label": f"{sell:.2f} ₽",
         }
-    if _wants_json(request):
+    if ajax or _wants_json(request):
         return JSONResponse(payload)
     return redirect_to("/orders")
 
