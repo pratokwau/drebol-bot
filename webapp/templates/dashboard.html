@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <h1>Рабочая панель</h1>
+  <p>Быстрый обзор бота, FunPay и прибыли.</p>
+</header>
+
+<section class="grid">
+  <article class="card">
+    <span class="label">FunPay аккаунт</span>
+    <strong>{{ "Настроен" if gk_set and ua_set else "Не полностью" }}</strong>
+    <p>Golden Key: {{ "есть" if gk_set else "нет" }} · User-Agent: {{ "есть" if ua_set else "нет" }}</p>
+  </article>
+  <article class="card">
+    <span class="label">Сегодня</span>
+    <strong>{{ "%.2f"|format(day_stats.profit) }} ₽</strong>
+    <p>{{ day_stats.count }} заказов · {{ "%.2f"|format(day_stats.sell) }} ₽ продаж</p>
+  </article>
+  <article class="card">
+    <span class="label">Месяц</span>
+    <strong>{{ "%.2f"|format(month_stats.profit) }} ₽</strong>
+    <p>{{ month_stats.count }} заказов · {{ "%.2f"|format(month_stats.sell) }} ₽ продаж</p>
+  </article>
+  <article class="card">
+    <span class="label">Журнал</span>
+    <strong>{{ total_profits }}</strong>
+    <p>записей saveprofit в ordersfp.db</p>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Последние себестоимости</h2>
+  <table>
+    <thead><tr><th>Заказ</th><th>Закуп</th></tr></thead>
+    <tbody>
+    {% for order_id, cost in orders %}
+      <tr><td>#{{ order_id }}</td><td>{{ "%.2f"|format(cost or 0) }} ₽</td></tr>
+    {% else %}
+      <tr><td colspan="2">Пока пусто</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

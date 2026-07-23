@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <h1>SaveProfit</h1>
+  <p>Журнал прибыли из ordersfp.db.</p>
+</header>
+
+<section class="grid">
+  <article class="card">
+    <span class="label">{{ stats.label }}</span>
+    <strong>{{ "%.2f"|format(stats.profit) }} ₽</strong>
+    <p>{{ stats.count }} заказов · {{ "%.2f"|format(stats.sell) }} ₽ продаж</p>
+  </article>
+  <article class="card wide">
+    <span class="label">Период</span>
+    <div class="tabs">
+      <a class="{{ 'active' if period == 'day' else '' }}" href="/profits?period=day">День</a>
+      <a class="{{ 'active' if period == 'week' else '' }}" href="/profits?period=week">Неделя</a>
+      <a class="{{ 'active' if period == 'month' else '' }}" href="/profits?period=month">Месяц</a>
+    </div>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Добавить запись</h2>
+  <form method="post" action="/profits/add" class="form-grid">
+    <label>Тип<input name="profit_type" value="FunPay"></label>
+    <label>Закуп<input name="buy_price" placeholder="0"></label>
+    <label>Продажа<input name="sell_price" placeholder="0"></label>
+    <label>Чистая прибыль<input name="profit" placeholder="авто"></label>
+    <label>Дата<input name="date" value="{{ now_text }}"></label>
+    <button type="submit">Добавить</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Журнал</h2>
+  <table>
+    <thead><tr><th>Тип</th><th>Дата</th><th>Закуп</th><th>Продажа</th><th>Чистыми</th><th></th></tr></thead>
+    <tbody>
+    {% for index, item in profits %}
+      <tr>
+        <td>{{ item.type }}</td>
+        <td>{{ item.date }}</td>
+        <td>{{ "%.2f"|format(item.buy_price or 0) }} ₽</td>
+        <td>{{ "%.2f"|format(item.sell_price or 0) }} ₽</td>
+        <td>{{ "%.2f"|format(item.profit or 0) }} ₽</td>
+        <td>
+          <form method="post" action="/profits/delete">
+            <input type="hidden" name="index" value="{{ index }}">
+            <button class="ghost" type="submit">Удалить</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">Пока пусто</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

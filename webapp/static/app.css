@@ -1,0 +1,117 @@
+:root {
+  --bg: #f4f1eb;
+  --ink: #1d2328;
+  --muted: #687076;
+  --line: #d9d2c5;
+  --card: #fffaf1;
+  --accent: #176b5d;
+  --accent-2: #b14b2d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  background: linear-gradient(135deg, #f4f1eb 0%, #e7efe9 100%);
+  color: var(--ink);
+  font: 16px/1.45 "Trebuchet MS", Georgia, serif;
+}
+
+.sidebar {
+  padding: 28px 20px;
+  border-right: 1px solid var(--line);
+  background: rgba(255, 250, 241, 0.82);
+}
+.brand {
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 30px;
+  color: var(--accent);
+}
+nav { display: grid; gap: 8px; }
+nav a, .tabs a {
+  color: var(--ink);
+  text-decoration: none;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+}
+nav a:hover, .tabs a.active {
+  border-color: var(--accent);
+  background: #eef7ef;
+}
+
+.content { padding: 34px; max-width: 1180px; width: 100%; }
+.page-head h1 { margin: 0; font-size: 42px; }
+.page-head p { margin: 6px 0 24px; color: var(--muted); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.card, .panel {
+  background: rgba(255, 250, 241, 0.9);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+}
+.card.wide { grid-column: span 3; }
+.label { color: var(--muted); display: block; margin-bottom: 8px; }
+.card strong { display: block; font-size: 30px; color: var(--accent); }
+.card p { margin: 8px 0 0; color: var(--muted); }
+.panel { margin-top: 18px; }
+.panel h2 { margin: 0 0 14px; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td {
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+th { color: var(--muted); font-weight: 600; }
+
+input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: var(--ink);
+}
+label { display: grid; gap: 6px; color: var(--muted); }
+button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--accent-2);
+  color: var(--accent-2);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.inline-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+}
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 860px) {
+  body { grid-template-columns: 1fr; }
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+  .grid, .form-grid, .inline-form { grid-template-columns: 1fr; }
+  .card.wide { grid-column: auto; }
+  .content { padding: 22px; }
+}

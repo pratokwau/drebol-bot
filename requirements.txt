@@ -12,3 +12,7 @@ lxml
 matplotlib
 Pillow
 paramiko==3.4.0
+fastapi
+uvicorn
+jinja2
+python-multipart
