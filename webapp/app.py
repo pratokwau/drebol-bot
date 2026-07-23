@@ -346,9 +346,7 @@ async def save_order_cost(
     if hasattr(orders_db, "set_sell_price"):
         orders_db.set_sell_price(clean_order_id, sell, order_date)
     payload = _order_payload(clean_order_id, sell, buy, order_date)
-    if ajax or _wants_json(request):
-        return JSONResponse(payload)
-    return redirect_to("/orders")
+    return JSONResponse(payload)
 
 
 @app.post("/orders/save-price")
@@ -382,9 +380,7 @@ async def save_order_sell_price(
             "buy_label": "0.00 ₽",
             "sell_label": f"{sell:.2f} ₽",
         }
-    if ajax or _wants_json(request):
-        return JSONResponse(payload)
-    return redirect_to("/orders")
+    return JSONResponse(payload)
 
 
 @app.get("/settings")
