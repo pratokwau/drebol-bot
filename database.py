@@ -1,3 +1,6 @@
+import secrets
+from datetime import datetime
+
 from pathlib import Path
 
 from base_store import admin_db_path, connect
@@ -125,8 +128,66 @@ class ProfitDatabase:
         self.conn.commit()
 
 
+class WebSessionDatabase:
+    def __init__(self, db_file: str):
+        self.db_file = db_file
+        self.conn = connect(db_file)
+        self.cursor = self.conn.cursor()
+        self.create_tables()
+
+    def create_tables(self):
+        self.cursor.execute(
+            '''CREATE TABLE IF NOT EXISTS web_sessions
+               (session_id TEXT PRIMARY KEY,
+                username TEXT,
+                created_at TEXT,
+                last_seen TEXT,
+                revoked INTEGER DEFAULT 0)'''
+        )
+        self.conn.commit()
+
+    def create_session(self, username: str) -> str:
+        session_id = secrets.token_urlsafe(32)
+        now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        self.cursor.execute(
+            "INSERT INTO web_sessions (session_id, username, created_at, last_seen, revoked) VALUES (?, ?, ?, ?, 0)",
+            (session_id, username, now, now),
+        )
+        self.conn.commit()
+        return session_id
+
+    def get_session(self, session_id: str):
+        self.cursor.execute(
+            "SELECT session_id, username, created_at, last_seen, revoked FROM web_sessions WHERE session_id = ? AND revoked = 0",
+            (session_id,),
+        )
+        return self.cursor.fetchone()
+
+    def touch_session(self, session_id: str):
+        now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        self.cursor.execute(
+            "UPDATE web_sessions SET last_seen = ? WHERE session_id = ?",
+            (now, session_id),
+        )
+        self.conn.commit()
+
+    def list_sessions(self):
+        self.cursor.execute(
+            "SELECT session_id, username, created_at, last_seen, revoked FROM web_sessions ORDER BY created_at DESC"
+        )
+        return self.cursor.fetchall()
+
+    def revoke_session(self, session_id: str):
+        self.cursor.execute(
+            "UPDATE web_sessions SET revoked = 1 WHERE session_id = ?",
+            (session_id,),
+        )
+        self.conn.commit()
+
+
 db = AccountDatabase(admin_db_path("funpayacc"))
 orders_db = OrdersDatabase(admin_db_path("ordersfp"))
+web_db = WebSessionDatabase(admin_db_path("webauth"))
 
 
 def _table_exists(conn, table_name: str) -> bool:
