@@ -29,7 +29,7 @@ except ImportError:
     except Exception:
         pass
 
-from database import db
+from database import db, orders_db
 from config import ADMIN_ID
 from handlers.utils import load_profits, save_profits, format_date_now, load_inventory
 
@@ -487,7 +487,7 @@ async def view_sales(call: types.CallbackQuery):
         for s in current_sales:
             s_id = str(getattr(s, 'id', '???'))
             emoji = get_status_emoji(getattr(s, 'status', ''))
-            has_cost = "✅" if db.get_prime_cost(s_id) else "❌"
+            has_cost = "✅" if orders_db.get_prime_cost(s_id) else "❌"
 
             raw_price = getattr(s, 'price', getattr(s, 'amount', 0))
             price_str = clean_price(raw_price)
@@ -536,7 +536,7 @@ async def view_sales(call: types.CallbackQuery):
 # --- ДЕТАЛИ ЗАКАЗА ---
 async def _build_order_card(s_id: str, api_price: str, source_page: int, state: FSMContext) -> tuple[str, types.InlineKeyboardMarkup]:
     gk, ua = db.get_config()
-    cost = db.get_prime_cost(s_id)
+    cost = orders_db.get_prime_cost(s_id)
 
     product_name = "Загрузка..."
     order_status = ""
@@ -709,7 +709,7 @@ async def process_order_search(message: types.Message, state: FSMContext):
         order_dates[s_id] = order_date
         await state.update_data(fp_order_dates=order_dates)
 
-    cost = db.get_prime_cost(s_id)
+    cost = orders_db.get_prime_cost(s_id)
     custom_prices = state_data.get("custom_sell_prices", {})
     final_price = custom_prices.get(s_id, api_price)
     is_refunded = "refund" in order_status or "возврат" in order_status
@@ -903,7 +903,7 @@ async def fast_save_cost(call: types.CallbackQuery, state: FSMContext):
     buy_price = float(str(params[4]).replace(" ", "").replace("\xa0", ""))
 
     profit = (sell_price * 0.97) - buy_price
-    db.set_prime_cost(order_id, buy_price)
+    orders_db.set_prime_cost(order_id, buy_price)
 
     user_id = call.from_user.id
     state_data = await state.get_data()
@@ -980,7 +980,7 @@ async def process_cost(message: types.Message, state: FSMContext):
         order_date = get_fp_order_date(order_id) or data.get("fp_order_dates", {}).get(order_id, "")
 
         profit = (sell_price * 0.97) - buy_price
-        db.set_prime_cost(order_id, buy_price)
+        orders_db.set_prime_cost(order_id, buy_price)
 
         profits = load_profits(message.from_user.id)
 

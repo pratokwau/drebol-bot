@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 
 from loader import bot
 from config import ADMIN_ID
-from database import db
+from database import db, orders_db
 from handlers.funpay_admin import (
     extract_order_amount,
     fetch_funpay_sales,
@@ -221,7 +221,7 @@ async def remind_unfilled_orders():
             if "refund" in str(s.status).lower():
                 continue
 
-            if not db.get_prime_cost(s_id):
+            if not orders_db.get_prime_cost(s_id):
                 to_remind_ids.append(s)
 
         if to_remind_ids:
@@ -360,7 +360,7 @@ async def _run_unfilled_check(target, state: FSMContext, period: str, custom_tex
             s_id = str(s.id)
             if "refund" in str(s.status).lower():
                 continue
-            if not db.get_prime_cost(s_id):
+            if not orders_db.get_prime_cost(s_id):
                 to_remind_ids.append(s)
 
         if to_remind_ids:
@@ -414,7 +414,7 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
 
         to_fill = []
         for s in sales:
-            if "refund" not in str(s.status).lower() and not db.get_prime_cost(str(s.id)):
+            if "refund" not in str(s.status).lower() and not orders_db.get_prime_cost(str(s.id)):
                 to_fill.append(s)
 
         if not to_fill:
@@ -437,7 +437,7 @@ async def cb_process_tasks(call: types.CallbackQuery, state: FSMContext): # До
 
         for s in to_fill:
             s_id = str(s.id)
-            if db.get_prime_cost(s_id):
+            if orders_db.get_prime_cost(s_id):
                 continue
 
             product_name = getattr(s, 'description', getattr(s, 'product_name', 'Без названия'))

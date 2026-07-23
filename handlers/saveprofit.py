@@ -9,7 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, StateFilter
 from aiogram.enums import ParseMode
 from html import escape
-from database import db
+from database import orders_db
 
 from states.states import SaveProfitStates, ProfitStatsStates
 from handlers.utils import load_profits, save_profits, format_date_now as format_date
@@ -690,7 +690,7 @@ async def process_delete_profit(message: types.Message, state: FSMContext):
             if "FP #" in item['type']:
                 try:
                     order_id = item['type'].split("#")[1].split()[0]
-                    db.set_prime_cost(order_id, None) # Удаляем из БД бота
+                    orders_db.set_prime_cost(order_id, None) # Удаляем из БД бота
                 except Exception: pass
 
             removed_profit = profits.pop(real_index)
