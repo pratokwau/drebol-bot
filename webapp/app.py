@@ -354,16 +354,20 @@ async def old_profits_redirect(user=Depends(require_session)):
 
 
 @app.post("/orders/save-cost")
-async def save_order_cost(
-    request: Request,
-    order_id: str = Form(...),
-    buy_price: str = Form(...),
-    sell_price: str = Form("0"),
-    order_date: str = Form(""),
-    ajax: int = 0,
-    user=Depends(require_session),
-):
+async def save_order_cost(request: Request):
     try:
+        session_id = request.cookies.get("drebol_session", "")
+        session = web_db.get_session(session_id) if session_id else None
+        if not session:
+            return JSONResponse({"ok": False, "error": "Сессия истекла. Обновите страницу."}, status_code=401)
+        web_db.touch_session(session_id)
+
+        form = await request.form()
+        order_id = str(form.get("order_id", ""))
+        buy_price = str(form.get("buy_price", "0"))
+        sell_price = str(form.get("sell_price", "0"))
+        order_date = str(form.get("order_date", ""))
+
         clean_order_id = order_id.strip().lstrip("#")
         buy = _money(buy_price.replace(",", "."))
         sell = _money(sell_price.replace(",", "."))
@@ -373,20 +377,24 @@ async def save_order_cost(
         payload = _order_payload(clean_order_id, sell, buy, order_date)
         return JSONResponse(payload)
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
+        return JSONResponse({"ok": False, "error": str(e)[:500]}, status_code=500)
 
 
 @app.post("/orders/save-price")
-async def save_order_sell_price(
-    request: Request,
-    order_id: str = Form(...),
-    sell_price: str = Form(...),
-    buy_price: str = Form(""),
-    order_date: str = Form(""),
-    ajax: int = 0,
-    user=Depends(require_session),
-):
+async def save_order_sell_price(request: Request):
     try:
+        session_id = request.cookies.get("drebol_session", "")
+        session = web_db.get_session(session_id) if session_id else None
+        if not session:
+            return JSONResponse({"ok": False, "error": "Сессия истекла. Обновите страницу."}, status_code=401)
+        web_db.touch_session(session_id)
+
+        form = await request.form()
+        order_id = str(form.get("order_id", ""))
+        sell_price = str(form.get("sell_price", "0"))
+        buy_price = str(form.get("buy_price", ""))
+        order_date = str(form.get("order_date", ""))
+
         clean_order_id = order_id.strip().lstrip("#")
         sell = _money(sell_price.replace(",", "."))
         existing_buy = orders_db.get_prime_cost(clean_order_id)
@@ -410,7 +418,7 @@ async def save_order_sell_price(
             }
         return JSONResponse(payload)
     except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
+        return JSONResponse({"ok": False, "error": str(e)[:500]}, status_code=500)
 
 
 @app.get("/settings")
