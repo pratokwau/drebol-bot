@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -142,6 +142,25 @@ def _save_profit_from_order(order_id: str, sell_price: float, buy_price: float, 
         entry["date"] = order_date or old_date or entry["date"]
         profits[existing_idx] = entry
     profit_db.save_profits(profits)
+    return entry
+
+
+def _wants_json(request: Request) -> bool:
+    return request.headers.get("x-requested-with", "").lower() == "fetch"
+
+
+def _order_payload(order_id: str, sell_price: float, buy_price: float, order_date: str) -> dict:
+    entry = _save_profit_from_order(order_id, sell_price, buy_price, order_date)
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "buy_price": round(buy_price, 2),
+        "sell_price": round(sell_price, 2),
+        "profit": entry["profit"],
+        "profit_label": f'{entry["profit"]:.2f} ₽',
+        "buy_label": f"{buy_price:.2f} ₽",
+        "sell_label": f"{sell_price:.2f} ₽",
+    }
 
 
 def _sale_game(sale) -> str:
@@ -179,6 +198,10 @@ def _order_cards(limit: int = 120, sort: str = "date", mode: str = "all") -> tup
         order_game = _sale_game(sale)
         order_date = _sale_date(sale)
         order_amount = extract_order_amount(product_name)
+        orders_db.set_order_date(order_id, order_date)
+        sell_override = orders_db.get_sell_price(order_id) if hasattr(orders_db, "get_sell_price") else None
+        if sell_override is not None:
+            sell_price = _money(sell_override)
         cost = orders_db.get_prime_cost(order_id)
 
         if mode == "unfilled" and cost is not None:
@@ -308,6 +331,7 @@ async def old_profits_redirect(user=Depends(require_session)):
 
 @app.post("/orders/save-cost")
 async def save_order_cost(
+    request: Request,
     order_id: str = Form(...),
     buy_price: str = Form(...),
     sell_price: str = Form("0"),
@@ -318,7 +342,46 @@ async def save_order_cost(
     buy = _money(buy_price.replace(",", "."))
     sell = _money(sell_price.replace(",", "."))
     orders_db.set_prime_cost(clean_order_id, buy)
-    _save_profit_from_order(clean_order_id, sell, buy, order_date)
+    if hasattr(orders_db, "set_sell_price"):
+        orders_db.set_sell_price(clean_order_id, sell, order_date)
+    payload = _order_payload(clean_order_id, sell, buy, order_date)
+    if _wants_json(request):
+        return JSONResponse(payload)
+    return redirect_to("/orders")
+
+
+@app.post("/orders/save-price")
+async def save_order_sell_price(
+    request: Request,
+    order_id: str = Form(...),
+    sell_price: str = Form(...),
+    buy_price: str = Form(""),
+    order_date: str = Form(""),
+    user=Depends(require_session),
+):
+    clean_order_id = order_id.strip().lstrip("#")
+    sell = _money(sell_price.replace(",", "."))
+    existing_buy = orders_db.get_prime_cost(clean_order_id)
+    buy = _money(buy_price.replace(",", ".")) if str(buy_price or "").strip() else _money(existing_buy)
+    if hasattr(orders_db, "set_sell_price"):
+        orders_db.set_sell_price(clean_order_id, sell, order_date)
+    if str(buy_price or "").strip():
+        orders_db.set_prime_cost(clean_order_id, buy)
+    if buy > 0 or existing_buy is not None:
+        payload = _order_payload(clean_order_id, sell, buy, order_date)
+    else:
+        payload = {
+            "ok": True,
+            "order_id": clean_order_id,
+            "buy_price": None,
+            "sell_price": round(sell, 2),
+            "profit": None,
+            "profit_label": "— ₽",
+            "buy_label": "0.00 ₽",
+            "sell_label": f"{sell:.2f} ₽",
+        }
+    if _wants_json(request):
+        return JSONResponse(payload)
     return redirect_to("/orders")
 
 

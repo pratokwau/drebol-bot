@@ -42,8 +42,20 @@ class OrdersDatabase:
 
     def create_tables(self):
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS orders_data 
-                               (order_id TEXT PRIMARY KEY, prime_cost REAL)''')
+                               (order_id TEXT PRIMARY KEY,
+                                prime_cost REAL,
+                                sell_price REAL,
+                                order_date TEXT)''')
         self.conn.commit()
+        self._ensure_column("sell_price", "REAL")
+        self._ensure_column("order_date", "TEXT")
+
+    def _ensure_column(self, column_name: str, column_type: str):
+        self.cursor.execute("PRAGMA table_info(orders_data)")
+        columns = {row[1] for row in self.cursor.fetchall()}
+        if column_name not in columns:
+            self.cursor.execute(f"ALTER TABLE orders_data ADD COLUMN {column_name} {column_type}")
+            self.conn.commit()
 
     def get_prime_cost(self, order_id):
         self.cursor.execute("SELECT prime_cost FROM orders_data WHERE order_id = ?", (order_id,))
@@ -52,8 +64,34 @@ class OrdersDatabase:
 
     def set_prime_cost(self, order_id, cost):
         self.cursor.execute(
-            "INSERT OR REPLACE INTO orders_data (order_id, prime_cost) VALUES (?, ?)",
+            '''INSERT INTO orders_data (order_id, prime_cost) VALUES (?, ?)
+               ON CONFLICT(order_id) DO UPDATE SET prime_cost = excluded.prime_cost''',
             (order_id, cost)
+        )
+        self.conn.commit()
+
+    def get_sell_price(self, order_id):
+        self.cursor.execute("SELECT sell_price FROM orders_data WHERE order_id = ?", (order_id,))
+        res = self.cursor.fetchone()
+        return res[0] if res and res[0] is not None else None
+
+    def set_sell_price(self, order_id, sell_price, order_date=None):
+        self.cursor.execute(
+            '''INSERT INTO orders_data (order_id, sell_price, order_date) VALUES (?, ?, ?)
+               ON CONFLICT(order_id) DO UPDATE SET
+                   sell_price = excluded.sell_price,
+                   order_date = COALESCE(excluded.order_date, orders_data.order_date)''',
+            (order_id, sell_price, order_date),
+        )
+        self.conn.commit()
+
+    def set_order_date(self, order_id, order_date):
+        if not order_date:
+            return
+        self.cursor.execute(
+            '''INSERT INTO orders_data (order_id, order_date) VALUES (?, ?)
+               ON CONFLICT(order_id) DO UPDATE SET order_date = excluded.order_date''',
+            (order_id, order_date),
         )
         self.conn.commit()
 

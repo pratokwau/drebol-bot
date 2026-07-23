@@ -98,6 +98,10 @@ button {
   color: white;
   cursor: pointer;
 }
+button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
 button.ghost {
   background: transparent;
   border: 1px solid var(--accent-2);
@@ -176,6 +180,21 @@ button.ghost {
   gap: 8px;
   margin-top: 10px;
 }
+.sell-price-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 14px;
+}
+.order-feedback {
+  min-height: 20px;
+  margin-top: 8px;
+  color: var(--accent);
+  font-size: 14px;
+}
+.order-feedback.error {
+  color: #8f351d;
+}
 
 .login-body {
   display: grid;
@@ -207,5 +226,5 @@ button.ghost {
   .grid, .form-grid, .inline-form { grid-template-columns: 1fr; }
   .card.wide { grid-column: auto; }
   .content { padding: 22px; }
-  .cards-grid, .grid.two, .order-meta, .manual-cost { grid-template-columns: 1fr; }
+  .cards-grid, .grid.two, .order-meta, .manual-cost, .sell-price-form { grid-template-columns: 1fr; }
 }
