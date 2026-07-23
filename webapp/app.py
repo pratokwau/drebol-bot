@@ -25,6 +25,24 @@ app = FastAPI(title="Drebolbot Web")
 app.mount("/static", StaticFiles(directory=os.path.join(APP_ROOT, "static")), name="static")
 
 
+@app.exception_handler(HTTPException)
+async def ajax_exception_handler(request: Request, exc: HTTPException):
+    is_ajax = request.headers.get("x-requested-with", "").lower() == "fetch"
+    if is_ajax and exc.status_code in (303, 302, 301, 307, 308):
+        return JSONResponse(
+            {"ok": False, "error": "Сессия истекла. Обновите страницу."},
+            status_code=401,
+        )
+    if is_ajax:
+        return JSONResponse(
+            {"ok": False, "error": exc.detail or "Ошибка"},
+            status_code=exc.status_code,
+        )
+    if exc.status_code in (303, 302, 301, 307, 308):
+        return RedirectResponse(exc.headers.get("Location", "/login"), status_code=exc.status_code)
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
 def redirect_to(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=status.HTTP_303_SEE_OTHER)
 
