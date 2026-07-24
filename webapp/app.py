@@ -201,9 +201,15 @@ def _order_cards(limit: int = 120, sort: str = "date", mode: str = "all") -> tup
     if not gk:
         return [], "Сначала настройте Golden Key в разделе FunPay."
 
+    fetch_limit = limit
+    if mode == "unfilled":
+        fetch_limit = min(limit * 4, 5000)
+    elif mode == "filled":
+        fetch_limit = min(limit * 2, 5000)
+
     try:
         account = make_funpay_account(gk, ua)
-        sales = fetch_funpay_sales(account, limit=limit)
+        sales = fetch_funpay_sales(account, limit=fetch_limit)
     except Exception as exc:
         return [], f"FunPay не отдал заказы: {exc}"
 
@@ -246,6 +252,8 @@ def _order_cards(limit: int = 120, sort: str = "date", mode: str = "all") -> tup
             "profit": profit,
             "variants": variants,
         })
+        if len(cards) >= limit:
+            break
 
     if sort == "profit":
         cards.sort(key=lambda item: item["profit"] if item["profit"] is not None else -10**12, reverse=True)
@@ -538,14 +546,17 @@ async def save_order_sell_price(request: Request):
 
 @app.get("/settings")
 async def settings_page(request: Request, user=Depends(require_session)):
+    sessions = web_db.list_sessions()
+    revoked_count = sum(1 for s in sessions if s[4])
     return templates.TemplateResponse(
         request=request,
         name="settings.html",
         context={
             "user": user,
-            "sessions": web_db.list_sessions(),
+            "sessions": sessions,
             "current_session": user["session_id"],
             "login_username": _login_pair()[0],
+            "revoked_count": revoked_count,
         },
     )
 
@@ -557,4 +568,13 @@ async def revoke_session(session_id: str = Form(...), user=Depends(require_sessi
         response = redirect_to("/login")
         response.delete_cookie("drebol_session")
         return response
+    return redirect_to("/settings")
+
+
+@app.post("/settings/revoke-all")
+async def revoke_all_sessions(user=Depends(require_session)):
+    sessions = web_db.list_sessions()
+    for session_id, _, _, _, revoked in sessions:
+        if revoked and session_id != user["session_id"]:
+            web_db.delete_session(session_id)
     return redirect_to("/settings")

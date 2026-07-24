@@ -222,6 +222,13 @@ class WebSessionDatabase:
         )
         self.conn.commit()
 
+    def delete_session(self, session_id: str):
+        self.cursor.execute(
+            "DELETE FROM web_sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        self.conn.commit()
+
 
 db = AccountDatabase(admin_db_path("funpayacc"))
 orders_db = OrdersDatabase(admin_db_path("ordersfp"))
