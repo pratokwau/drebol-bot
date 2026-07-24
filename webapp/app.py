@@ -749,7 +749,7 @@ async def settings_update(user=Depends(require_session)):
         result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=os.path.dirname(__file__) or ".")
         output = result.stdout.strip() + result.stderr.strip()
         subprocess.Popen(
-            ["systemctl", "restart", "drebol-bot"],
+            ["sh", "-c", "sleep 1 && pkill -9 -f uvicorn && sleep 2 && systemctl restart drebol-bot"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         return JSONResponse({"ok": True, "output": output[:500]})
