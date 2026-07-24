@@ -22,22 +22,6 @@
     <input name="limit" value="{{ limit }}" placeholder="Лимит" style="max-width:100px;">
     <button type="submit">Найти</button>
   </form>
-  <button type="button" onclick="toggleAiPanel()" style="background:var(--accent);margin-left:auto;">
-    🤖 AI Автозакуп
-  </button>
-</section>
-
-<!-- AI Auto-Buy Panel -->
-<section id="ai-panel" class="panel" style="display:none;">
-  <h2>🤖 AI Автозакуп</h2>
-  <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">Напиши что нужно сделать. Например: «введи закуп на последних 1000 товаров без закупа используя закуп с кэшбеком»</p>
-  <textarea id="ai-prompt" rows="3" placeholder="введи закуп на последних 1000 товаров без закупа используя закуп с кэшбеком" style="width:100%;resize:vertical;"></textarea>
-  <div style="display:flex;gap:8px;margin-top:12px;">
-    <button id="ai-start" onclick="startAi()" style="background:var(--green);">▶ Старт</button>
-    <button id="ai-stop" onclick="stopAi()" class="ghost" disabled>⏹ Стоп</button>
-    <span id="ai-status" style="color:var(--muted);font-size:13px;align-self:center;"></span>
-  </div>
-  <div id="ai-log" style="margin-top:16px;max-height:300px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:var(--ink-2);display:none;"></div>
 </section>
 
 {% if error %}
@@ -114,81 +98,6 @@
 </section>
 
 <script>
-  let aiRunning = false;
-  let aiAbort = null;
-
-  function toggleAiPanel() {
-    const panel = document.getElementById('ai-panel');
-    panel.style.display = panel.style.display === 'none' ? '' : 'none';
-  }
-
-  function aiLog(msg) {
-    const log = document.getElementById('ai-log');
-    log.style.display = '';
-    log.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
-    log.scrollTop = log.scrollHeight;
-  }
-
-  async function startAi() {
-    if (aiRunning) return;
-    const prompt = document.getElementById('ai-prompt').value.trim();
-    if (!prompt) { alert('Введи запрос'); return; }
-
-    aiRunning = true;
-    document.getElementById('ai-start').disabled = true;
-    document.getElementById('ai-stop').disabled = false;
-    document.getElementById('ai-log').innerHTML = '';
-    document.getElementById('ai-status').textContent = 'Запускаю...';
-
-    aiLog('🤖 Анализирую запрос: ' + prompt);
-
-    try {
-      const res = await fetch('/orders/ai-auto-buy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await res.json();
-      if (!data.ok) { aiLog('❌ ' + (data.error || 'Ошибка')); return; }
-
-      aiLog('📋 Найдено заказов: ' + data.total + ' | Совпадений: ' + data.matched);
-      aiLog('⏳ Начинаю обработку...');
-
-      for (let i = 0; i < data.orders.length && aiRunning; i++) {
-        const o = data.orders[i];
-        aiLog(`🔍 [${i+1}/${data.orders.length}] Заказ #${o.id}: ${o.product.substring(0, 40)}...`);
-
-        if (o.match) {
-          aiLog(`   ✅ Найдено: ${o.match.name} (${o.match.cashback}) — ${o.match.cost} ₽`);
-          await fetch('/orders/save-cost', {
-            method: 'POST',
-            body: new URLSearchParams({ order_id: o.id, buy_price: o.match.cost, sell_price: o.sell_price, order_date: o.date }),
-          });
-          aiLog(`   💾 Сохранено`);
-        } else {
-          aiLog(`   ⚠️ Совпадение не найдено`);
-        }
-
-        document.getElementById('ai-status').textContent = `Обработано ${i+1} из ${data.orders.length}`;
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      aiLog(aiRunning ? '✅ Готово!' : '⏹ Остановлено');
-    } catch (e) {
-      aiLog('❌ Ошибка: ' + e.message);
-    } finally {
-      aiRunning = false;
-      document.getElementById('ai-start').disabled = false;
-      document.getElementById('ai-stop').disabled = true;
-      document.getElementById('ai-status').textContent = '';
-    }
-  }
-
-  function stopAi() {
-    aiRunning = false;
-    aiLog('⏹ Остановлено пользователем');
-  }
-
   document.querySelectorAll("[data-ajax-order]").forEach((form) => {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
