@@ -361,17 +361,42 @@ async def calc_page(request: Request, user=Depends(require_session)):
 
 
 @app.get("/profits")
-async def profits_page(request: Request, page: int = 0, user=Depends(require_session)):
+async def profits_page(request: Request, period: str = "day", page: int = 0, user=Depends(require_session)):
     profits = _load_admin_profits()
-    sorted_profits = sorted(profits, key=lambda x: str(x.get("date", "")), reverse=True)
+    now = datetime.now()
+    if period == "week":
+        start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        period_label = "Неделя"
+    elif period == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        period_label = "Месяц"
+    elif period == "all":
+        start = None
+        period_label = "Всё время"
+    else:
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        period = "day"
+        period_label = "Сегодня"
+
+    filtered = []
+    for p in profits:
+        dt = _parse_date(p.get("date", ""))
+        if start is None or (dt and dt >= start):
+            filtered.append(p)
+    filtered.sort(key=lambda x: str(x.get("date", "")), reverse=True)
+
     per_page = 15
-    total = len(sorted_profits)
+    total = len(filtered)
     total_pages = max(1, (total - 1) // per_page + 1)
     page = max(0, min(page, total_pages - 1))
-    start = page * per_page
-    end = start + per_page
-    page_items = sorted_profits[start:end]
-    all_stats = _all_profit_stats(profits)
+    page_items = filtered[page * per_page : (page + 1) * per_page]
+
+    stats = {
+        "count": len(filtered),
+        "sell": sum(_money(p.get("sell_price")) for p in filtered),
+        "profit": sum(_money(p.get("profit")) for p in filtered),
+    }
+
     return templates.TemplateResponse(
         request=request,
         name="profits.html",
@@ -381,7 +406,9 @@ async def profits_page(request: Request, page: int = 0, user=Depends(require_ses
             "page": page,
             "total_pages": total_pages,
             "total": total,
-            "all_stats": all_stats,
+            "stats": stats,
+            "period": period,
+            "period_label": period_label,
         },
     )
 
