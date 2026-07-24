@@ -128,10 +128,10 @@ async function autolink(mode) {
       res.innerHTML = '<span style="color:var(--green);">Найдено лотов: ' + data.lots_found + ' | Сопоставлено: ' + data.saved + ' из ' + data.total + '</span>';
       setTimeout(() => location.reload(), 1500);
     } else {
-      res.innerHTML = '<span style="color:var(--red);">' + (data.error || 'Ошибка') + '</span>';
+      res.innerHTML = '<span style="color:var(--red);">❌ ' + (data.error || 'Неизвестная ошибка') + '</span>';
     }
   } catch (e) {
-    res.innerHTML = '<span style="color:var(--red);">Ошибка: ' + e.message + '</span>';
+    res.innerHTML = '<span style="color:var(--red);">❌ Исключение: ' + e.message + '</span>';
   } finally {
     btn.disabled = false;
     btn.textContent = mode === 'all' ? 'Сопоставить все' : 'Только без лотов';

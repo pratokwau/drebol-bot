@@ -846,7 +846,7 @@ async def minprice_set_offer(request: Request, game_hash: str, item_id: str = Fo
 
 @app.post("/minprice/game/{game_hash}/autolink")
 async def minprice_autolink(request: Request, game_hash: str, user=Depends(require_session)):
-    import traceback
+    import traceback as _tb
     from handlers.minprice import _get_user_lots, _match_offers_with_ai, CASHBACK_OPTIONS
     try:
         mp = _load_mp(ADMIN_ID)
@@ -861,12 +861,18 @@ async def minprice_autolink(request: Request, game_hash: str, user=Depends(requi
         form = await request.form()
         mode = str(form.get("mode", "all"))
 
-        print(f"[AUTOLINK] Запуск для '{game_name}', режим: {mode}")
-        lots = await _get_user_lots(game_name)
+        print(f"[AUTOLINK] === ЗАПУСК === Игра: '{game_name}', режим: {mode}")
+
+        try:
+            lots = await _get_user_lots(game_name)
+        except Exception as e:
+            _tb.print_exc()
+            return JSONResponse({"ok": False, "error": f"Ошибка скрейпинга лотов: {type(e).__name__}: {str(e)[:200]}"})
+
         print(f"[AUTOLINK] Лотов найдено: {len(lots) if lots else 0}")
 
         if not lots:
-            return JSONResponse({"ok": False, "error": "Лоты не найдены на FunPay. Проверьте что профиль публичный."})
+            return JSONResponse({"ok": False, "error": "Лоты не найдены на FunPay. Проверьте что профиль публичный и в настройках верный FUNPAY_USER_ID."})
 
         items = _mp_items(mp, game_name)
         if mode == "unlinked":
@@ -875,9 +881,15 @@ async def minprice_autolink(request: Request, game_hash: str, user=Depends(requi
         if not items:
             return JSONResponse({"ok": False, "error": "Нет товаров для сопоставления"})
 
-        print(f"[AUTOLINK] Товаров для сопоставления: {len(items)}")
-        matches = await _match_offers_with_ai(game_name, lots, items)
-        print(f"[AUTOLINK] ИИ нашёл совпадений: {len(matches)}")
+        print(f"[AUTOLINK] Товаров: {len(items)}")
+
+        try:
+            matches = await _match_offers_with_ai(game_name, lots, items)
+        except Exception as e:
+            _tb.print_exc()
+            return JSONResponse({"ok": False, "error": f"Ошибка ИИ: {type(e).__name__}: {str(e)[:200]}"})
+
+        print(f"[AUTOLINK] ИИ совпадений: {len(matches)}")
 
         saved = 0
         for full_name, offer_ids in matches.items():
@@ -897,8 +909,8 @@ async def minprice_autolink(request: Request, game_hash: str, user=Depends(requi
         print(f"[AUTOLINK] Сохранено: {saved}")
         return JSONResponse({"ok": True, "saved": saved, "total": len(matches), "lots_found": len(lots)})
     except Exception as e:
-        traceback.print_exc()
-        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}"})
+        _tb.print_exc()
+        return JSONResponse({"ok": False, "error": f"Критическая ошибка: {type(e).__name__}: {str(e)[:300]}"})
 
 
 # ====================== DEMPING ======================
