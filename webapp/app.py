@@ -815,3 +815,237 @@ async def minprice_set_offer(request: Request, game_hash: str, item_id: str = Fo
     mp[game_name][item_id]["offer_ids"] = ids
     _save_mp(ADMIN_ID, mp)
     return redirect_to(f"/minprice/game/{game_hash}")
+
+
+# ====================== DEMPING ======================
+
+@app.get("/demping")
+async def demping_page(request: Request, user=Depends(require_session)):
+    from handlers.demping import load_demping, load_demping_settings
+    demping = load_demping()
+    settings = load_demping_settings()
+    return templates.TemplateResponse(request=request, name="demping.html", context={
+        "user": user, "demping": demping, "settings": settings, "lot_count": len(demping),
+    })
+
+
+@app.post("/demping/upload")
+async def demping_upload(request: Request, user=Depends(require_session)):
+    from handlers.demping import save_demping
+    form = await request.form()
+    file = form.get("file")
+    if file and hasattr(file, "read"):
+        try:
+            content = await file.read()
+            import json as _json
+            data = _json.loads(content.decode("utf-8"))
+            if isinstance(data, dict):
+                save_demping(data)
+        except Exception:
+            pass
+    return redirect_to("/demping")
+
+
+@app.post("/demping/set-path")
+async def demping_set_path(request: Request, user=Depends(require_session)):
+    from handlers.demping import save_demping_settings, load_demping_settings
+    form = await request.form()
+    path = str(form.get("target_path", "")).strip()
+    if path:
+        settings = load_demping_settings()
+        if not path.endswith(".json"):
+            path = os.path.join(path, "price_optimizer_lots.json")
+        settings["target_path"] = path
+        save_demping_settings(settings)
+    return redirect_to("/demping")
+
+
+@app.post("/demping/set-restart")
+async def demping_set_restart(request: Request, user=Depends(require_session)):
+    from handlers.demping import save_demping_settings, load_demping_settings
+    form = await request.form()
+    cmd = str(form.get("restart_command", "")).strip()
+    if cmd:
+        settings = load_demping_settings()
+        settings["restart_command"] = cmd
+        save_demping_settings(settings)
+    return redirect_to("/demping")
+
+
+@app.post("/demping/send-cardinal")
+async def demping_send_cardinal(request: Request, user=Depends(require_session)):
+    from handlers.demping import load_demping_settings, DEMPING_FILE
+    import shutil, subprocess
+    settings = load_demping_settings()
+    target = settings["target_path"]
+    cmd = settings["restart_command"]
+    target_dir = os.path.dirname(target) or "."
+    os.makedirs(target_dir, exist_ok=True)
+    shutil.copy2(DEMPING_FILE, target)
+    subprocess.run(cmd, shell=True, capture_output=True, timeout=30)
+    return redirect_to("/demping")
+
+
+@app.post("/demping/update-prices")
+async def demping_update_prices(request: Request, user=Depends(require_session)):
+    from handlers.demping import load_demping, _do_update
+    mp = _load_mp(ADMIN_ID)
+    demping = load_demping()
+    result = _do_update(mp, demping, ADMIN_ID, prefs_override={})
+    return JSONResponse({"ok": True, "updated": result.get("updated_lots", 0)})
+
+
+# ====================== CERTIFICATES ======================
+
+@app.get("/certs")
+async def certs_page(request: Request, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, load_cert_demping
+    data = load_certificates(ADMIN_ID)
+    cert_demping = load_cert_demping()
+    games = []
+    for game_name in sorted(data.keys()):
+        items = {k: v for k, v in data.get(game_name, {}).items() if k != "_meta" and isinstance(v, dict)}
+        meta = data.get(game_name, {}).get("_meta", {})
+        rate = meta.get("rate", 0)
+        games.append({
+            "name": game_name,
+            "hash": hashlib.md5(game_name.encode()).hexdigest()[:8],
+            "items_count": len(items),
+            "rate": rate,
+        })
+    return templates.TemplateResponse(request=request, name="certs.html", context={
+        "user": user, "games": games, "demping_count": len(cert_demping),
+    })
+
+
+@app.get("/certs/game/{game_hash}")
+async def certs_game_page(request: Request, game_hash: str, user=Depends(require_session)):
+    from handlers.certificates import load_certificates
+    data = load_certificates(ADMIN_ID)
+    game_name = None
+    for name in data.keys():
+        if hashlib.md5(name.encode()).hexdigest()[:8] == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return redirect_to("/certs")
+    items = {k: v for k, v in data.get(game_name, {}).items() if k != "_meta" and isinstance(v, dict)}
+    meta = data.get(game_name, {}).get("_meta", {})
+    return templates.TemplateResponse(request=request, name="certs_game.html", context={
+        "user": user, "game_name": game_name, "game_hash": game_hash, "items": items, "rate": meta.get("rate", 0),
+    })
+
+
+@app.post("/certs/game/{game_hash}/rate")
+async def certs_set_rate(request: Request, game_hash: str, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates
+    form = await request.form()
+    rate = _money(str(form.get("rate", "0")).replace(",", "."))
+    data = load_certificates(ADMIN_ID)
+    game_name = None
+    for name in data.keys():
+        if hashlib.md5(name.encode()).hexdigest()[:8] == game_hash:
+            game_name = name
+            break
+    if game_name and rate > 0:
+        if game_name not in data:
+            data[game_name] = {}
+        if "_meta" not in data[game_name]:
+            data[game_name]["_meta"] = {}
+        data[game_name]["_meta"]["rate"] = rate
+        save_certificates(data, ADMIN_ID)
+    return redirect_to(f"/certs/game/{game_hash}")
+
+
+@app.post("/certs/game/{game_hash}/add")
+async def certs_add_item(request: Request, game_hash: str, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates, calc_min_price as cert_calc
+    form = await request.form()
+    item_name = str(form.get("item_name", "")).strip()
+    cost = _money(str(form.get("cost", "0")).replace(",", "."))
+    offer_id = str(form.get("offer_id", "")).strip()
+    data = load_certificates(ADMIN_ID)
+    game_name = None
+    for name in data.keys():
+        if hashlib.md5(name.encode()).hexdigest()[:8] == game_hash:
+            game_name = name
+            break
+    if not game_name or not item_name:
+        return redirect_to(f"/certs/game/{game_hash}")
+    item_id = hashlib.md5(f"cert_{item_name}_{secrets.token_hex(4)}".encode()).hexdigest()[:8]
+    if game_name not in data:
+        data[game_name] = {}
+    data[game_name][item_id] = {
+        "name": item_name, "cost": cost, "min_price": cert_calc(cost),
+        "offer_id": int(offer_id) if offer_id.isdigit() else None,
+    }
+    save_certificates(data, ADMIN_ID)
+    return redirect_to(f"/certs/game/{game_hash}")
+
+
+@app.post("/certs/game/{game_hash}/delete")
+async def certs_delete_item(request: Request, game_hash: str, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates
+    form = await request.form()
+    item_id = str(form.get("item_id", "")).strip()
+    data = load_certificates(ADMIN_ID)
+    game_name = None
+    for name in data.keys():
+        if hashlib.md5(name.encode()).hexdigest()[:8] == game_hash:
+            game_name = name
+            break
+    if game_name and item_id in data.get(game_name, {}):
+        del data[game_name][item_id]
+        save_certificates(data, ADMIN_ID)
+    return redirect_to(f"/certs/game/{game_hash}")
+
+
+@app.post("/certs/send-cardinal")
+async def certs_send_cardinal(request: Request, user=Depends(require_session)):
+    from handlers.certificates import CERT_DEMPING_FILE
+    from handlers.demping import get_cardinal_target_path, get_cardinal_restart_command
+    import shutil, subprocess
+    target = get_cardinal_target_path()
+    cmd = get_cardinal_restart_command()
+    target_dir = os.path.dirname(target) or "."
+    os.makedirs(target_dir, exist_ok=True)
+    shutil.copy2(CERT_DEMPING_FILE, target)
+    subprocess.run(cmd, shell=True, capture_output=True, timeout=30)
+    return redirect_to("/certs")
+
+
+@app.post("/certs/update-demping")
+async def certs_update_demping(request: Request, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, load_cert_demping, save_cert_demping, calc_site_price as cert_site_price
+    data = load_certificates(ADMIN_ID)
+    demping = load_cert_demping()
+    updated = 0
+    for game_name, game_data in data.items():
+        meta = game_data.get("_meta", {})
+        rate = meta.get("rate", 0)
+        if rate <= 0:
+            continue
+        for _, info in {k: v for k, v in game_data.items() if k != "_meta" and isinstance(v, dict)}.items():
+            offer_id = str(info.get("offer_id") or "")
+            if not offer_id:
+                continue
+            new_price = cert_site_price(_money(info.get("cost", 0)), rate)
+            if offer_id in demping:
+                old_price = _money(demping[offer_id].get("min_price"))
+                if old_price != new_price:
+                    demping[offer_id]["min_price"] = new_price
+                    demping[offer_id]["max_price"] = round(new_price + 200, 2)
+                    updated += 1
+            else:
+                ntext = str(info.get("name") or "").lower()
+                demping[offer_id] = {
+                    "active": True,
+                    "triggers": f"{ntext} ₽ | {ntext}+ RUB | {ntext} RUB | {ntext} руб | {ntext} рублей",
+                    "min_price": new_price,
+                    "max_price": round(new_price + 200, 2),
+                    "min_rating": 3, "skip_no_rating": True, "price_step": 0.01,
+                    "rounding": 0.01, "min_one_unit": False, "friends": [], "outbid_offline": False,
+                }
+                updated += 1
+    save_cert_demping(demping)
+    return JSONResponse({"ok": True, "updated": updated})
