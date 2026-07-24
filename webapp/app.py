@@ -308,6 +308,11 @@ async def dashboard(request: Request, user=Depends(require_session)):
     )
 
 
+@app.get("/calc")
+async def calc_page(request: Request, user=Depends(require_session)):
+    return templates.TemplateResponse(request=request, name="calc.html", context={"user": user})
+
+
 @app.get("/funpay")
 async def funpay_page(request: Request, user=Depends(require_session)):
     gk, ua = db.get_config()
@@ -353,11 +358,6 @@ async def orders_page(
             "stats": _all_profit_stats(_load_admin_profits()),
         },
     )
-
-
-@app.get("/calc")
-async def calc_page(request: Request, user=Depends(require_session)):
-    return templates.TemplateResponse(request=request, name="calc.html", context={"user": user})
 
 
 @app.get("/profits")
