@@ -18,8 +18,8 @@ apt install -y python3 python3-venv python3-pip nginx certbot python3-certbot-ng
 ### 2. Клонировать репозиторий
 
 ```bash
-git clone https://github.com/pratokwau/drebol-bot.git /root/drebolbot
-cd /root/drebolbot
+git clone https://github.com/pratokwau/drebol-bot.git /root/drebol-bot
+cd /root/drebol-bot
 ```
 
 ### 3. Создать виртуальное окружение и зависимости
@@ -62,7 +62,7 @@ source .venv/bin/activate
 ### 7. Настроить systemd-сервис
 
 ```bash
-cat > /etc/systemd/system/drebolbot.service << 'EOF'
+cat > /etc/systemd/system/drebol-bot.service << 'EOF'
 [Unit]
 Description=Drebolbot Web
 After=network.target
@@ -70,26 +70,26 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/drebolbot
-ExecStart=/root/drebolbot/.venv/bin/python -m uvicorn webapp.app:app --host 127.0.0.1 --port 8090
+WorkingDirectory=/root/drebol-bot
+ExecStart=/root/drebol-bot/.venv/bin/python -m uvicorn webapp.app:app --host 127.0.0.1 --port 8090
 Restart=always
 RestartSec=5
-EnvironmentFile=/root/drebolbot/.env
+EnvironmentFile=/root/drebol-bot/.env
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable drebolbot
-systemctl start drebolbot
-systemctl status drebolbot
+systemctl enable drebol-bot
+systemctl start drebol-bot
+systemctl status drebol-bot
 ```
 
 ### 8. Настроить nginx
 
 ```bash
-cat > /etc/nginx/sites-available/drebolbot << 'EOF'
+cat > /etc/nginx/sites-available/drebol-bot << 'EOF'
 server {
     server_name ваш-домен.ru;
 
@@ -103,7 +103,7 @@ server {
 }
 EOF
 
-ln -sf /etc/nginx/sites-available/drebolbot /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/drebol-bot /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 ```
@@ -137,7 +137,7 @@ https://ваш-домен.ru
 ## Автозапуск при перезагрузке сервера
 
 ```bash
-systemctl enable drebolbot
+systemctl enable drebol-bot
 ```
 
 Уже сделано на шаге 7.
@@ -145,21 +145,21 @@ systemctl enable drebolbot
 ## Обновление
 
 ```bash
-cd /root/drebolbot
+cd /root/drebol-bot
 git pull
-systemctl restart drebolbot
+systemctl restart drebol-bot
 ```
 
 ## Просмотр логов
 
 ```bash
-journalctl -u drebolbot -f
+journalctl -u drebol-bot -f
 ```
 
 ## Структура проекта
 
 ```
-drebolbot/
+drebol-bot/
 ├── webapp/
 │   ├── app.py              # FastAPI приложение (роуты)
 │   ├── static/app.css      # Стили (тёмная тема)
