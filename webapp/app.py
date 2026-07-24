@@ -611,8 +611,12 @@ async def revoke_all_sessions(user=Depends(require_session)):
 async def settings_update(user=Depends(require_session)):
     import subprocess
     try:
-        result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=os.path.dirname(__file__) or ".")
         output = result.stdout.strip() + result.stderr.strip()
+        subprocess.Popen(
+            ["systemctl", "restart", "drebol-bot"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
         return JSONResponse({"ok": True, "output": output[:500]})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
@@ -842,48 +846,59 @@ async def minprice_set_offer(request: Request, game_hash: str, item_id: str = Fo
 
 @app.post("/minprice/game/{game_hash}/autolink")
 async def minprice_autolink(request: Request, game_hash: str, user=Depends(require_session)):
+    import traceback
     from handlers.minprice import _get_user_lots, _match_offers_with_ai, CASHBACK_OPTIONS
-    mp = _load_mp(ADMIN_ID)
-    game_name = None
-    for name in mp.keys():
-        if _mp_hash(name) == game_hash:
-            game_name = name
-            break
-    if not game_name:
-        return JSONResponse({"ok": False, "error": "Игра не найдена"})
-
-    form = await request.form()
-    mode = str(form.get("mode", "all"))
-
-    lots = await _get_user_lots(game_name)
-    if not lots:
-        return JSONResponse({"ok": False, "error": "Лоты не найдены на FunPay"})
-
-    items = _mp_items(mp, game_name)
-    if mode == "unlinked":
-        items = {iid: info for iid, info in items.items() if isinstance(info, dict) and not _mp_offer_ids(info)}
-
-    if not items:
-        return JSONResponse({"ok": False, "error": "Нет товаров для сопоставления"})
-
-    matches = await _match_offers_with_ai(game_name, lots, items)
-
-    saved = 0
-    for full_name, offer_ids in matches.items():
-        for item_id, info in mp[game_name].items():
-            if item_id == "_meta" or not isinstance(info, dict):
-                continue
-            name = info.get("name", "")
-            cashback = info.get("cashback", "none")
-            cb_label = CASHBACK_OPTIONS.get(cashback, "")
-            item_full = f"{name} ({cb_label})" if cb_label else name
-            if item_full == full_name:
-                mp[game_name][item_id]["offer_ids"] = offer_ids
-                saved += 1
+    try:
+        mp = _load_mp(ADMIN_ID)
+        game_name = None
+        for name in mp.keys():
+            if _mp_hash(name) == game_hash:
+                game_name = name
                 break
+        if not game_name:
+            return JSONResponse({"ok": False, "error": "Игра не найдена"})
 
-    _save_mp(ADMIN_ID, mp)
-    return JSONResponse({"ok": True, "saved": saved, "total": len(matches), "lots_found": len(lots)})
+        form = await request.form()
+        mode = str(form.get("mode", "all"))
+
+        print(f"[AUTOLINK] Запуск для '{game_name}', режим: {mode}")
+        lots = await _get_user_lots(game_name)
+        print(f"[AUTOLINK] Лотов найдено: {len(lots) if lots else 0}")
+
+        if not lots:
+            return JSONResponse({"ok": False, "error": "Лоты не найдены на FunPay. Проверьте что профиль публичный."})
+
+        items = _mp_items(mp, game_name)
+        if mode == "unlinked":
+            items = {iid: info for iid, info in items.items() if isinstance(info, dict) and not _mp_offer_ids(info)}
+
+        if not items:
+            return JSONResponse({"ok": False, "error": "Нет товаров для сопоставления"})
+
+        print(f"[AUTOLINK] Товаров для сопоставления: {len(items)}")
+        matches = await _match_offers_with_ai(game_name, lots, items)
+        print(f"[AUTOLINK] ИИ нашёл совпадений: {len(matches)}")
+
+        saved = 0
+        for full_name, offer_ids in matches.items():
+            for item_id, info in mp[game_name].items():
+                if item_id == "_meta" or not isinstance(info, dict):
+                    continue
+                name = info.get("name", "")
+                cashback = info.get("cashback", "none")
+                cb_label = CASHBACK_OPTIONS.get(cashback, "")
+                item_full = f"{name} ({cb_label})" if cb_label else name
+                if item_full == full_name:
+                    mp[game_name][item_id]["offer_ids"] = offer_ids
+                    saved += 1
+                    break
+
+        _save_mp(ADMIN_ID, mp)
+        print(f"[AUTOLINK] Сохранено: {saved}")
+        return JSONResponse({"ok": True, "saved": saved, "total": len(matches), "lots_found": len(lots)})
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}"})
 
 
 # ====================== DEMPING ======================
