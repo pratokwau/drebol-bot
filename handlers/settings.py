@@ -217,18 +217,6 @@ async def cb_stg_back(call: types.CallbackQuery):
     await call.answer()
 
 
-@router.callback_query(F.data == "stg_main_back")
-async def cb_stg_main_back(call: types.CallbackQuery, state: FSMContext):
-    await state.clear()
-    from handlers.start import start_menu_kb
-    await call.message.edit_text(
-        "🪼 <b>Drebol Bot</b>\n\nВыберите нужный раздел кнопкой ниже:",
-        parse_mode=ParseMode.HTML,
-        reply_markup=start_menu_kb()
-    )
-    await call.answer()
-
-
 @router.message(SettingsStates.waiting_admin_report_time)
 async def proc_set_admin_report_time(message: types.Message, state: FSMContext):
     if int(message.from_user.id) != int(ADMIN_ID):
