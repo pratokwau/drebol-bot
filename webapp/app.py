@@ -66,7 +66,7 @@ def require_session(request: Request):
     session_id = request.cookies.get("drebol_session", "")
     session = web_db.get_session(session_id) if session_id else None
     if not session:
-        return {"session_id": "bypass", "username": "admin"}
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
     web_db.touch_session(session_id)
     return {"session_id": session[0], "username": session[1]}
 
@@ -353,6 +353,11 @@ async def orders_page(
             "stats": _all_profit_stats(_load_admin_profits()),
         },
     )
+
+
+@app.get("/calc")
+async def calc_page(request: Request, user=Depends(require_session)):
+    return templates.TemplateResponse(request=request, name="calc.html", context={"user": user})
 
 
 @app.get("/profits")

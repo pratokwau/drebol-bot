@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Расчёты · Drebolbot{% endblock %}
+{% block title %}Расчёт · Drebolbot{% endblock %}
 {% block content %}
 <header class="page-head">
-  <h1>Расчёты</h1>
+  <h1>Расчёт</h1>
   <p>Калькуляторы прибыли для FunPay и PlayerOK.</p>
 </header>
 
 <div style="display:flex;gap:8px;margin-bottom:20px;">
-  <button id="tab-fp" onclick="showTab('fp')" style="background:var(--accent);">🧮 FunPay</button>
-  <button id="tab-po" onclick="showTab('po')" class="ghost">🧮 PlayerOK</button>
+  <button id="sub-fp" onclick="showCalc('fp')" style="background:var(--accent);font-size:13px;padding:8px 18px;">🧮 FunPay</button>
+  <button id="sub-po" onclick="showCalc('po')" class="ghost" style="font-size:13px;padding:8px 18px;">🧮 PlayerOK</button>
 </div>
 
-<!-- FUNPAY CALCULATOR -->
-<section id="panel-fp" class="panel">
+<!-- FunPay -->
+<section id="calc-fp" class="panel">
   <h2>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
     Расчёт FunPay
@@ -49,8 +49,8 @@
   </div>
 </section>
 
-<!-- PLAYEROK CALCULATOR -->
-<section id="panel-po" class="panel" style="display:none;">
+<!-- PlayerOK -->
+<section id="calc-po" class="panel" style="display:none;">
   <h2>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
     Расчёт PlayerOK
@@ -81,7 +81,7 @@
           <div id="po-after-withdraw" style="font-size:20px;font-weight:700;color:var(--yellow);margin-top:4px;">0 ₽</div>
         </div>
         <div>
-          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Итого получишь</div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Итого</div>
           <div id="po-net" style="font-size:20px;font-weight:700;color:var(--ink);margin-top:4px;">0 ₽</div>
         </div>
         <div>
@@ -94,46 +94,41 @@
 </section>
 
 <script>
-  function showTab(tab) {
-    document.getElementById('panel-fp').style.display = tab === 'fp' ? '' : 'none';
-    document.getElementById('panel-po').style.display = tab === 'po' ? '' : 'none';
-    document.getElementById('tab-fp').className = tab === 'fp' ? '' : 'ghost';
-    document.getElementById('tab-po').className = tab === 'po' ? '' : 'ghost';
+  function showCalc(type) {
+    document.getElementById('calc-fp').style.display = type === 'fp' ? '' : 'none';
+    document.getElementById('calc-po').style.display = type === 'po' ? '' : 'none';
+    document.getElementById('sub-fp').style.background = type === 'fp' ? 'var(--accent)' : 'transparent';
+    document.getElementById('sub-fp').style.color = type === 'fp' ? '#fff' : 'var(--ink-2)';
+    document.getElementById('sub-fp').style.borderColor = type === 'fp' ? 'transparent' : 'var(--border)';
+    document.getElementById('sub-po').style.background = type === 'po' ? 'var(--accent)' : 'transparent';
+    document.getElementById('sub-po').style.color = type === 'po' ? '#fff' : 'var(--ink-2)';
+    document.getElementById('sub-po').style.borderColor = type === 'po' ? 'transparent' : 'var(--border)';
   }
-
   function fmt(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽'; }
-
   function calcFP() {
-    var commission = parseFloat(document.getElementById('fp-commission').value) || 0;
-    var buy = parseFloat(document.getElementById('fp-buy').value) || 0;
-    var sell = parseFloat(document.getElementById('fp-sell').value) || 0;
-    if (buy <= 0 || sell <= 0) { document.getElementById('fp-result').style.display = 'none'; return; }
-    var commVal = sell * commission / 100;
-    var afterComm = sell - commVal;
-    var profit = afterComm - buy;
-    document.getElementById('fp-comm-val').textContent = fmt(commVal);
-    document.getElementById('fp-after-val').textContent = fmt(afterComm);
-    var profitEl = document.getElementById('fp-profit-val');
-    profitEl.textContent = fmt(profit);
-    profitEl.style.color = profit > 0 ? 'var(--green)' : profit < 0 ? 'var(--red)' : 'var(--ink)';
+    var c = parseFloat(document.getElementById('fp-commission').value) || 0;
+    var b = parseFloat(document.getElementById('fp-buy').value) || 0;
+    var s = parseFloat(document.getElementById('fp-sell').value) || 0;
+    if (b <= 0 || s <= 0) { document.getElementById('fp-result').style.display = 'none'; return; }
+    var cv = s * c / 100, af = s - cv, pr = af - b;
+    document.getElementById('fp-comm-val').textContent = fmt(cv);
+    document.getElementById('fp-after-val').textContent = fmt(af);
+    var el = document.getElementById('fp-profit-val');
+    el.textContent = fmt(pr); el.style.color = pr > 0 ? 'var(--green)' : pr < 0 ? 'var(--red)' : 'var(--ink)';
     document.getElementById('fp-result').style.display = '';
   }
-
   function calcPO() {
-    var saleC = parseFloat(document.getElementById('po-sale').value) || 0;
-    var withdrawC = parseFloat(document.getElementById('po-withdraw').value) || 0;
-    var buy = parseFloat(document.getElementById('po-buy').value) || 0;
-    var sell = parseFloat(document.getElementById('po-sell').value) || 0;
-    if (buy <= 0 || sell <= 0) { document.getElementById('po-result').style.display = 'none'; return; }
-    var afterSale = sell - (sell * saleC / 100);
-    var afterWithdraw = afterSale - (afterSale * withdrawC / 100);
-    var profit = afterWithdraw - buy;
-    document.getElementById('po-after-sale').textContent = fmt(afterSale);
-    document.getElementById('po-after-withdraw').textContent = fmt(afterWithdraw);
-    document.getElementById('po-net').textContent = fmt(afterWithdraw);
-    var profitEl = document.getElementById('po-profit-val');
-    profitEl.textContent = fmt(profit);
-    profitEl.style.color = profit > 0 ? 'var(--green)' : profit < 0 ? 'var(--red)' : 'var(--ink)';
+    var sc = parseFloat(document.getElementById('po-sale').value) || 0;
+    var wc = parseFloat(document.getElementById('po-withdraw').value) || 0;
+    var b = parseFloat(document.getElementById('po-buy').value) || 0;
+    var s = parseFloat(document.getElementById('po-sell').value) || 0;
+    if (b <= 0 || s <= 0) { document.getElementById('po-result').style.display = 'none'; return; }
+    var as = s - (s * sc / 100), aw = as - (as * wc / 100), pr = aw - b;
+    document.getElementById('po-after-sale').textContent = fmt(as);
+    document.getElementById('po-after-withdraw').textContent = fmt(aw);
+    document.getElementById('po-net').textContent = fmt(aw);
+    var el = document.getElementById('po-profit-val');
+    el.textContent = fmt(pr); el.style.color = pr > 0 ? 'var(--green)' : pr < 0 ? 'var(--red)' : 'var(--ink)';
     document.getElementById('po-result').style.display = '';
   }
 </script>
