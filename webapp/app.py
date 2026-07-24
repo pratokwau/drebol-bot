@@ -544,7 +544,116 @@ async def save_order_sell_price(request: Request):
         return JSONResponse({"ok": False, "error": str(e)[:500]}, status_code=500)
 
 
-@app.get("/settings")
+@app.post("/orders/ai-auto-buy")
+async def ai_auto_buy(request: Request, user=Depends(require_session)):
+    try:
+        body = await request.json()
+        prompt = body.get("prompt", "").strip()
+        if not prompt:
+            return JSONResponse({"ok": False, "error": "Пустой запрос"}, status_code=400)
+
+        # Parse the prompt to determine mode and limit
+        prompt_lower = prompt.lower()
+        import re as _re
+        limit_match = _re.search(r'(\d+)\s*(?:товар|заказ|штук|шт)', prompt_lower)
+        fetch_limit = int(limit_match.group(1)) if limit_match else 100
+        use_cashback = 'кэшбек' in prompt_lower or 'с кэшбеком' in prompt_lower or 'cashback' in prompt_lower
+
+        # Fetch orders
+        gk, ua = db.get_config()
+        if not gk:
+            return JSONResponse({"ok": False, "error": "Golden Key не настроен"}, status_code=400)
+
+        account = make_funpay_account(gk, ua)
+        sales = fetch_funpay_sales(account, limit=min(fetch_limit * 4, 5000))
+
+        # Load minprice data for matching
+        from handlers.minprice import load_mp
+        mp_data = load_mp(user.get("session_id", "admin") if isinstance(user, dict) else 0)
+
+        # Build name -> price map from minprice
+        price_map = {}
+        for game_name, game_data in mp_data.items():
+            if not isinstance(game_data, dict):
+                continue
+            for item_id, info in game_data.items():
+                if item_id == "_meta" or not isinstance(info, dict):
+                    continue
+                name = info.get("name", "").strip()
+                if not name:
+                    continue
+                cashback_key = info.get("cashback", "none")
+                cost = info.get("cost", 0)
+                if cost <= 0:
+                    continue
+                key = name.lower()
+                entry = {"name": name, "cost": round(cost, 2), "cashback": cashback_key, "game": game_name}
+                if key not in price_map:
+                    price_map[key] = []
+                price_map[key].append(entry)
+
+        # Process unfilled orders
+        orders = []
+        for sale in sales[:fetch_limit * 4]:
+            if len(orders) >= fetch_limit:
+                break
+            order_id = str(getattr(sale, "id", ""))
+            if not order_id:
+                continue
+            status_text = str(getattr(sale, "status", "") or "")
+            if "refund" in status_text.lower():
+                continue
+            existing_cost = orders_db.get_prime_cost(order_id)
+            if existing_cost is not None:
+                continue
+            product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
+            sell_price_raw = getattr(sale, "price", getattr(sale, "amount", 0))
+            sell_price = _money(clean_price(sell_price_raw))
+            order_date = str(getattr(sale, "date", getattr(sale, "created_at", "")))
+
+            # Find matching product in minprice
+            product_lower = product_name.strip().lower()
+            match_info = None
+
+            # Try exact match first
+            if product_lower in price_map:
+                candidates = price_map[product_lower]
+                if use_cashback:
+                    cb_match = [c for c in candidates if c["cashback"] == "yes"]
+                    match_info = cb_match[0] if cb_match else candidates[0]
+                else:
+                    match_info = candidates[0]
+
+            # Try partial match
+            if not match_info:
+                best_score = 0
+                best_entry = None
+                for key, entries in price_map.items():
+                    # Calculate similarity
+                    words_product = set(product_lower.split())
+                    words_key = set(key.split())
+                    common = words_product & words_key
+                    if len(common) > best_score and len(common) >= min(2, min(len(words_product), len(words_key))):
+                        best_score = len(common)
+                        best_entries = entries
+                        if use_cashback:
+                            cb_match = [e for e in entries if e["cashback"] == "yes"]
+                            best_entry = cb_match[0] if cb_match else entries[0]
+                        else:
+                            best_entry = entries[0]
+                match_info = best_entry
+
+            orders.append({
+                "id": order_id,
+                "product": product_name,
+                "sell_price": sell_price,
+                "date": order_date,
+                "match": match_info,
+            })
+
+        return JSONResponse({"ok": True, "orders": orders, "total": len(orders)})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:500]}, status_code=500)
 async def settings_page(request: Request, user=Depends(require_session)):
     sessions = web_db.list_sessions()
     revoked_count = sum(1 for s in sessions if s[4])
