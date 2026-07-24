@@ -1,6 +1,7 @@
 import os
 import secrets
 import hashlib
+import json
 from datetime import datetime, timedelta
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
@@ -33,8 +34,22 @@ from handlers.minprice import (
 APP_ROOT = os.path.dirname(__file__)
 templates = Jinja2Templates(directory=os.path.join(APP_ROOT, "templates"))
 
-app = FastAPI(title="Drebolbot Web", version="2.1")
+app = FastAPI(title="Drebol-bot Web", version="3.0")
 app.mount("/static", StaticFiles(directory=os.path.join(APP_ROOT, "static")), name="static")
+NOTIFICATIONS_FILE = "data/notifications.json"
+
+
+def _notif_count_safe() -> int:
+    try:
+        if os.path.exists(NOTIFICATIONS_FILE):
+            with open(NOTIFICATIONS_FILE, encoding="utf-8") as f:
+                return len(json.load(f))
+    except Exception:
+        pass
+    return 0
+
+
+templates.env.globals["notification_count"] = _notif_count_safe
 
 
 @app.exception_handler(HTTPException)
@@ -71,7 +86,24 @@ def _login_pair() -> tuple[str, str]:
 
 def _is_valid_login(username: str, password: str) -> bool:
     good_user, good_pass = _login_pair()
-    return secrets.compare_digest(username, good_user) and secrets.compare_digest(password, good_pass)
+    if secrets.compare_digest(username, good_user) and secrets.compare_digest(password, good_pass):
+        return True
+    if hasattr(web_db, "check_account") and web_db.check_account(username, password):
+        return True
+    return False
+
+
+def _notif_count() -> int:
+    try:
+        return len(_load_notifications())
+    except Exception:
+        return 0
+
+
+def _ctx(user, **extra) -> dict:
+    base = {"user": user, "notification_count": _notif_count()}
+    base.update(extra)
+    return base
 
 
 def require_session(request: Request):
@@ -330,18 +362,121 @@ async def dashboard(request: Request, user=Depends(require_session)):
 
 @app.get("/funpay")
 async def funpay_page(request: Request, user=Depends(require_session)):
+    return redirect_to("/keys")
+
+
+@app.get("/keys")
+async def keys_page(request: Request, user=Depends(require_session)):
+    from handlers.ai_settings import load_ai_settings, save_ai_settings
     gk, ua = db.get_config()
-    return templates.TemplateResponse(
-        request=request,
-        name="funpay.html",
-        context={"user": user, "gk": gk or "", "ua": ua or ""},
-    )
+    ai = load_ai_settings()
+    accounts = web_db.list_accounts() if hasattr(web_db, "list_accounts") else []
+    return templates.TemplateResponse(request=request, name="keys.html", context={
+        "user": user, "gk": gk or "", "ua": ua or "",
+        "groq_key": ai.get("GROQ_API_KEY", ""),
+        "openrouter_key": ai.get("OPENROUTER_API_KEY", ""),
+        "accounts": accounts, "login_username": _login_pair()[0],
+    })
 
 
-@app.post("/funpay/account")
-async def update_funpay_account(gk: str = Form(""), ua: str = Form(""), user=Depends(require_session)):
-    db.update_config(gk=gk.strip() or None, ua=ua.strip() or None)
-    return redirect_to("/funpay")
+@app.post("/keys/funpay")
+async def keys_save_funpay(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    db.update_config(gk=str(form.get("gk", "")).strip() or None, ua=str(form.get("ua", "")).strip() or None)
+    return redirect_to("/keys")
+
+
+@app.post("/keys/groq")
+async def keys_save_groq(request: Request, user=Depends(require_session)):
+    from handlers.ai_settings import load_ai_settings, save_ai_settings
+    form = await request.form()
+    ai = load_ai_settings()
+    save_ai_settings(str(form.get("groq_key", "")).strip(), ai.get("OPENROUTER_API_KEY", ""))
+    return redirect_to("/keys")
+
+
+@app.post("/keys/openrouter")
+async def keys_save_openrouter(request: Request, user=Depends(require_session)):
+    from handlers.ai_settings import load_ai_settings, save_ai_settings
+    form = await request.form()
+    ai = load_ai_settings()
+    save_ai_settings(ai.get("GROQ_API_KEY", ""), str(form.get("openrouter_key", "")).strip())
+    return redirect_to("/keys")
+
+
+@app.post("/keys/add-account")
+async def keys_add_account(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    password = str(form.get("password", "")).strip()
+    if username and password and hasattr(web_db, "add_account"):
+        web_db.add_account(username, password)
+    return redirect_to("/keys")
+
+
+@app.post("/keys/toggle-account")
+async def keys_toggle_account(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    if username and hasattr(web_db, "toggle_account"):
+        web_db.toggle_account(username)
+    return redirect_to("/keys")
+
+
+@app.post("/keys/delete-account")
+async def keys_delete_account(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    if username and hasattr(web_db, "delete_account"):
+        web_db.delete_account(username)
+    return redirect_to("/keys")
+
+
+def _load_notifications() -> list:
+    if not os.path.exists(NOTIFICATIONS_FILE):
+        return []
+    try:
+        with open(NOTIFICATIONS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _save_notifications(data: list):
+    os.makedirs("data", exist_ok=True)
+    with open(NOTIFICATIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def add_notification(text: str, ntype: str = "info"):
+    notifs = _load_notifications()
+    notifs.insert(0, {"text": text, "type": ntype, "time": datetime.now().strftime("%d.%m.%Y %H:%M")})
+    _save_notifications(notifs[:50])
+
+
+@app.get("/notifications")
+async def notifications_page(request: Request, user=Depends(require_session)):
+    notifs = _load_notifications()
+    return templates.TemplateResponse(request=request, name="notifications.html", context={
+        "user": user, "notifications": notifs, "notification_count": len(notifs),
+    })
+
+
+@app.post("/notifications/dismiss")
+async def notifications_dismiss(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    idx = int(str(form.get("index", "-1")))
+    notifs = _load_notifications()
+    if 0 <= idx < len(notifs):
+        notifs.pop(idx)
+        _save_notifications(notifs)
+    return redirect_to("/notifications")
+
+
+@app.post("/notifications/clear")
+async def notifications_clear(request: Request, user=Depends(require_session)):
+    _save_notifications([])
+    return redirect_to("/notifications")
 
 
 @app.get("/orders")

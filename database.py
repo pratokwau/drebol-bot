@@ -182,6 +182,12 @@ class WebSessionDatabase:
                 last_seen TEXT,
                 revoked INTEGER DEFAULT 0)'''
         )
+        self.cursor.execute(
+            '''CREATE TABLE IF NOT EXISTS web_accounts
+               (username TEXT PRIMARY KEY,
+                password_hash TEXT,
+                active INTEGER DEFAULT 1)'''
+        )
         self.conn.commit()
 
     def create_session(self, username: str) -> str:
@@ -228,6 +234,36 @@ class WebSessionDatabase:
             (session_id,),
         )
         self.conn.commit()
+
+    def add_account(self, username: str, password: str):
+        import hashlib
+        pw_hash = hashlib.sha256(password.encode()).hexdigest()
+        self.cursor.execute(
+            "INSERT OR REPLACE INTO web_accounts (username, password_hash, active) VALUES (?, ?, 1)",
+            (username, pw_hash),
+        )
+        self.conn.commit()
+
+    def list_accounts(self) -> list:
+        self.cursor.execute("SELECT username, active FROM web_accounts ORDER BY username")
+        return [{"username": r[0], "active": bool(r[1])} for r in self.cursor.fetchall()]
+
+    def toggle_account(self, username: str):
+        self.cursor.execute("UPDATE web_accounts SET active = 1 - active WHERE username = ?", (username,))
+        self.conn.commit()
+
+    def delete_account(self, username: str):
+        self.cursor.execute("DELETE FROM web_accounts WHERE username = ?", (username,))
+        self.conn.commit()
+
+    def check_account(self, username: str, password: str) -> bool:
+        import hashlib
+        pw_hash = hashlib.sha256(password.encode()).hexdigest()
+        self.cursor.execute(
+            "SELECT 1 FROM web_accounts WHERE username = ? AND password_hash = ? AND active = 1",
+            (username, pw_hash),
+        )
+        return self.cursor.fetchone() is not None
 
 
 db = AccountDatabase(admin_db_path("funpayacc"))
