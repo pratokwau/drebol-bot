@@ -21,7 +21,7 @@ from handlers.funpay_admin import (
 APP_ROOT = os.path.dirname(__file__)
 templates = Jinja2Templates(directory=os.path.join(APP_ROOT, "templates"))
 
-app = FastAPI(title="Drebolbot Web")
+app = FastAPI(title="Drebolbot Web", version="2.1")
 app.mount("/static", StaticFiles(directory=os.path.join(APP_ROOT, "static")), name="static")
 
 
