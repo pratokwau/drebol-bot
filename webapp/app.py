@@ -558,8 +558,10 @@ async def save_order_sell_price(request: Request):
 
 @app.get("/settings")
 async def settings_page(request: Request, user=Depends(require_session)):
+    from handlers.settings import get_user_settings
     sessions = web_db.list_sessions()
     revoked_count = sum(1 for s in sessions if s[4])
+    settings = get_user_settings(ADMIN_ID)
     return templates.TemplateResponse(
         request=request,
         name="settings.html",
@@ -569,8 +571,21 @@ async def settings_page(request: Request, user=Depends(require_session)):
             "current_session": user["session_id"],
             "login_username": _login_pair()[0],
             "revoked_count": revoked_count,
+            "settings": settings,
         },
     )
+
+
+@app.post("/settings/update-bot")
+async def settings_update_bot(request: Request, user=Depends(require_session)):
+    from handlers.settings import update_setting
+    form = await request.form()
+    update_setting(ADMIN_ID, "restart_notify", "1" in str(form.get("restart_notify", "")))
+    update_setting(ADMIN_ID, "admin_report_notify", "1" in str(form.get("admin_report_notify", "")))
+    time_val = str(form.get("admin_report_time", "23:59")).strip()
+    if time_val:
+        update_setting(ADMIN_ID, "admin_report_time", time_val)
+    return redirect_to("/settings")
 
 
 @app.post("/settings/revoke")
@@ -1049,3 +1064,59 @@ async def certs_update_demping(request: Request, user=Depends(require_session)):
                 updated += 1
     save_cert_demping(demping)
     return JSONResponse({"ok": True, "updated": updated})
+
+
+# ====================== TASKS ======================
+
+@app.get("/tasks")
+async def tasks_page(request: Request, period: str = "day", user=Depends(require_session)):
+    gk, ua = db.get_config()
+    error = ""
+    cards = []
+    if gk:
+        try:
+            account = make_funpay_account(gk, ua)
+            sales = fetch_funpay_sales(account, limit=300)
+            now = datetime.now()
+            if period == "week":
+                start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+                period_label = "Неделя"
+            elif period == "month":
+                start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                period_label = "Месяц"
+            else:
+                start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                period_label = "День"
+
+            for sale in sales:
+                order_id = str(getattr(sale, "id", ""))
+                if not order_id:
+                    continue
+                status_text = str(getattr(sale, "status", "") or "")
+                if "refund" in status_text.lower():
+                    continue
+                if orders_db.get_prime_cost(order_id) is not None:
+                    continue
+                raw_date = str(getattr(sale, "date", getattr(sale, "created_at", "")) or "")
+                dt = None
+                for fmt in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M"):
+                    try:
+                        dt = datetime.strptime(raw_date[:19], fmt)
+                        break
+                    except Exception:
+                        continue
+                if dt and dt < start:
+                    continue
+                raw_price = getattr(sale, "price", getattr(sale, "amount", 0))
+                sell_price = _money(clean_price(raw_price))
+                product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
+                cards.append({"id": order_id, "product": product_name, "sell_price": sell_price, "date": raw_date})
+        except Exception as exc:
+            error = f"Ошибка: {exc}"
+    else:
+        error = "Golden Key не настроен"
+
+    return templates.TemplateResponse(request=request, name="tasks.html", context={
+        "user": user, "cards": cards, "error": error, "period": period,
+        "period_label": period_label if gk else "",
+    })

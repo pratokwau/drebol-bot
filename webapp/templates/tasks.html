@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Хвосты · Drebolbot{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Незаполненные заказы</h1>
+  <p>Заказы без себестоимости — хвосты, которые нужно закрыть.</p>
+</header>
+
+<section class="toolbar">
+  <div class="inline-form">
+    <a href="/tasks?period=day" class="btn {{ '' if period == 'day' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Сегодня</a>
+    <a href="/tasks?period=week" class="btn {{ '' if period == 'week' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Неделя</a>
+    <a href="/tasks?period=month" class="btn {{ '' if period == 'month' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Месяц</a>
+    <a href="/orders?mode=unfilled" class="btn ghost" style="text-decoration:none;padding:8px 16px;">Перейти к заказам →</a>
+  </div>
+</section>
+
+{% if error %}
+  <section class="panel alert">{{ error }}</section>
+{% endif %}
+
+<section class="grid">
+  <article class="card">
+    <div class="card-icon yellow">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+    </div>
+    <span class="label">Хвостов</span>
+    <strong style="color:var(--yellow);">{{ cards|length }}</strong>
+    <p>{{ period_label }}</p>
+  </article>
+</section>
+
+{% if cards %}
+<section class="panel">
+  <h2>Заказы без закупа ({{ cards|length }})</h2>
+  <table>
+    <thead>
+      <tr><th>Заказ</th><th>Товар</th><th>Продажа</th><th>Дата</th></tr>
+    </thead>
+    <tbody>
+    {% for c in cards %}
+      <tr>
+        <td><a href="/orders?q={{ c.id }}" style="color:var(--accent);text-decoration:none;font-weight:600;">#{{ c.id }}</a></td>
+        <td>{{ c.product[:60] }}{% if c.product|length > 60 %}...{% endif %}</td>
+        <td>{{ "%.2f"|format(c.sell_price) }} ₽</td>
+        <td style="color:var(--muted);font-size:13px;">{{ c.date }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;margin-bottom:12px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+  <br>Всё заполнено! Хвостов нет.
+</section>
+{% endif %}
+{% endblock %}
