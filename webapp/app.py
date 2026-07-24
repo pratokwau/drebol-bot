@@ -607,7 +607,15 @@ async def revoke_all_sessions(user=Depends(require_session)):
     return redirect_to("/settings")
 
 
-# ====================== MINPRICE ======================
+@app.post("/settings/update")
+async def settings_update(user=Depends(require_session)):
+    import subprocess
+    try:
+        result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        output = result.stdout.strip() + result.stderr.strip()
+        return JSONResponse({"ok": True, "output": output[:500]})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
 
 @app.get("/minprice")
 async def minprice_page(request: Request, user=Depends(require_session)):
