@@ -496,17 +496,15 @@ async def _get_user_lots(game_name: str) -> dict:
     """Получает все лоты игры со страницы публичного профиля FunPay"""
     try:
         import requests as req
+        import asyncio as _aio
         session = req.Session()
         session.headers.update({
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
 
-        # Получаем публичную страницу профиля
+        loop = _aio.get_running_loop()
         url = f"https://funpay.com/users/{FUNPAY_USER_ID}/"
-        r = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: session.get(url, timeout=15)
-        )
+        r = await loop.run_in_executor(None, lambda: session.get(url, timeout=15))
         profile_html = r.text
         print(f"[AUTO-LINK] Профиль скачан, размер: {len(profile_html)} символов")
 
