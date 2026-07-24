@@ -3,110 +3,236 @@
 {% block content %}
 <header class="page-head">
   <h1>Прибыль</h1>
-  <p>Чистая прибыль, сумма продаж и количество заказов.</p>
+  <p>Расчёты, журнал и статистика.</p>
 </header>
 
-<section class="toolbar">
-  <div class="inline-form">
-    <a href="/profits?period=day" class="btn {{ '' if period == 'day' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Сегодня</a>
-    <a href="/profits?period=week" class="btn {{ '' if period == 'week' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Неделя</a>
-    <a href="/profits?period=month" class="btn {{ '' if period == 'month' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Месяц</a>
-    <a href="/profits?period=all" class="btn {{ '' if period == 'all' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Всё время</a>
+<div style="display:flex;gap:8px;margin-bottom:20px;">
+  <button id="tab-calc" onclick="showTab('calc')" class="ghost">🧮 Расчёт</button>
+  <button id="tab-journal" onclick="showTab('journal')">📊 Журнал</button>
+</div>
+
+<!-- CALCULATOR TAB -->
+<section id="panel-calc" class="panel" style="display:none;">
+  <div style="display:flex;gap:8px;margin-bottom:16px;">
+    <button id="sub-fp" onclick="showCalc('fp')" style="background:var(--accent);font-size:13px;padding:6px 14px;">FunPay</button>
+    <button id="sub-po" onclick="showCalc('po')" class="ghost" style="font-size:13px;padding:6px 14px;">PlayerOK</button>
+  </div>
+
+  <!-- FunPay -->
+  <div id="calc-fp">
+    <div class="form-grid" style="margin-bottom:16px;">
+      <label>Комиссия (%)
+        <input id="fp-commission" type="number" step="0.01" value="3" oninput="calcFP()">
+      </label>
+      <div></div>
+      <label>Закупка (₽)
+        <input id="fp-buy" type="number" step="0.01" placeholder="1500" oninput="calcFP()">
+      </label>
+      <label>Продажа (₽)
+        <input id="fp-sell" type="number" step="0.01" placeholder="2200" oninput="calcFP()">
+      </label>
+    </div>
+    <div id="fp-result" style="display:none;">
+      <div style="border-top:1px solid var(--border);padding-top:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center;">
+          <div>
+            <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Комиссия</div>
+            <div id="fp-comm-val" style="font-size:22px;font-weight:700;color:var(--yellow);margin-top:4px;">0 ₽</div>
+          </div>
+          <div>
+            <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Получишь</div>
+            <div id="fp-after-val" style="font-size:22px;font-weight:700;color:var(--ink);margin-top:4px;">0 ₽</div>
+          </div>
+          <div>
+            <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Прибыль</div>
+            <div id="fp-profit-val" style="font-size:22px;font-weight:700;color:var(--green);margin-top:4px;">0 ₽</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PlayerOK -->
+  <div id="calc-po" style="display:none;">
+    <div class="form-grid" style="margin-bottom:16px;">
+      <label>Комиссия продажи (%)
+        <input id="po-sale" type="number" step="0.01" value="10" oninput="calcPO()">
+      </label>
+      <label>Комиссия вывода (%)
+        <input id="po-withdraw" type="number" step="0.01" value="5" oninput="calcPO()">
+      </label>
+      <label>Закупка (₽)
+        <input id="po-buy" type="number" step="0.01" placeholder="1500" oninput="calcPO()">
+      </label>
+      <label>Продажа (₽)
+        <input id="po-sell" type="number" step="0.01" placeholder="2000" oninput="calcPO()">
+      </label>
+    </div>
+    <div id="po-result" style="display:none;">
+      <div style="border-top:1px solid var(--border);padding-top:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;text-align:center;">
+          <div>
+            <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Продажа − %</div>
+            <div id="po-after-sale" style="font-size:20px;font-weight:700;color:var(--yellow);margin-top:4px;">0 ₽</div>
+          </div>
+          <div>
+            <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Вывод − %</div>
+            <div id="po-after-withdraw" style="font-size:20px;font-weight:700;color:var(--yellow);margin-top:4px;">0 ₽</div>
+          </div>
+          <div>
+            <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Итого</div>
+            <div id="po-net" style="font-size:20px;font-weight:700;color:var(--ink);margin-top:4px;">0 ₽</div>
+          </div>
+          <div>
+            <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Прибыль</div>
+            <div id="po-profit-val" style="font-size:20px;font-weight:700;color:var(--green);margin-top:4px;">0 ₽</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="grid">
-  <article class="card">
-    <div class="card-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+<!-- JOURNAL TAB -->
+<section id="panel-journal">
+  <section class="toolbar">
+    <div class="inline-form">
+      <a href="/profits?period=day" class="btn {{ '' if period == 'day' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Сегодня</a>
+      <a href="/profits?period=week" class="btn {{ '' if period == 'week' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Неделя</a>
+      <a href="/profits?period=month" class="btn {{ '' if period == 'month' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Месяц</a>
+      <a href="/profits?period=all" class="btn {{ '' if period == 'all' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Всё время</a>
     </div>
-    <span class="label">Чистая прибыль</span>
-    <strong style="color: {{ 'var(--green)' if stats.profit > 0 else 'var(--red)' if stats.profit < 0 else 'var(--ink)' }};">{{ "%.2f"|format(stats.profit) }} ₽</strong>
-    <p>{{ period_label }}</p>
-  </article>
-  <article class="card">
-    <div class="card-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-    </div>
-    <span class="label">Сумма продаж</span>
-    <strong>{{ "%.2f"|format(stats.sell) }} ₽</strong>
-    <p>{{ stats.count }} заказов</p>
-  </article>
-  <article class="card">
-    <div class="card-icon purple">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-    </div>
-    <span class="label">Средняя прибыль</span>
-    <strong>{{ "%.2f"|format(stats.profit / stats.count) if stats.count > 0 else "0.00" }} ₽</strong>
-    <p>На один заказ</p>
-  </article>
-  <article class="card">
-    <div class="card-icon yellow">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-    </div>
-    <span class="label">Заказов</span>
-    <strong>{{ stats.count }}</strong>
-    <p>{{ period_label }}</p>
-  </article>
-</section>
+  </section>
 
-{% if profits %}
-<section class="panel">
-  <h2>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-    Записи за период
-  </h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Источник</th>
-        <th>Закуп</th>
-        <th>Продажа</th>
-        <th>Прибыль</th>
-        <th>Дата</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for p in profits %}
-      <tr>
-        <td>
-          {% set src = (p.type or "")|lower %}
-          {% if "fp" in src %}
-            <span style="color:var(--blue);">🟦</span>
-          {% elif "po" in src %}
-            <span style="color:var(--green);">🟩</span>
-          {% else %}
-            <span style="color:var(--muted);">▫️</span>
-          {% endif %}
-          {{ p.type or "—" }}
-        </td>
-        <td>{{ "%.2f"|format(p.buy_price or 0) }} ₽</td>
-        <td>{{ "%.2f"|format(p.sell_price or 0) }} ₽</td>
-        <td style="color: {{ 'var(--green)' if (p.profit or 0) > 0 else 'var(--red)' if (p.profit or 0) < 0 else 'var(--ink)' }}; font-weight:600;">
-          {{ "%.2f"|format(p.profit or 0) }} ₽
-        </td>
-        <td style="color:var(--muted);font-size:13px;">{{ p.date or "—" }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <section class="grid">
+    <article class="card">
+      <div class="card-icon green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+      </div>
+      <span class="label">Чистая прибыль</span>
+      <strong style="color: {{ 'var(--green)' if stats.profit > 0 else 'var(--red)' if stats.profit < 0 else 'var(--ink)' }};">{{ "%.2f"|format(stats.profit) }} ₽</strong>
+      <p>{{ period_label }}</p>
+    </article>
+    <article class="card">
+      <div class="card-icon blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+      </div>
+      <span class="label">Сумма продаж</span>
+      <strong>{{ "%.2f"|format(stats.sell) }} ₽</strong>
+      <p>{{ stats.count }} заказов</p>
+    </article>
+    <article class="card">
+      <div class="card-icon purple">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+      </div>
+      <span class="label">Средняя прибыль</span>
+      <strong>{{ "%.2f"|format(stats.profit / stats.count) if stats.count > 0 else "0.00" }} ₽</strong>
+      <p>На один заказ</p>
+    </article>
+    <article class="card">
+      <div class="card-icon yellow">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+      </div>
+      <span class="label">Заказов</span>
+      <strong>{{ stats.count }}</strong>
+      <p>{{ period_label }}</p>
+    </article>
+  </section>
 
-  {% if total_pages > 1 %}
-  <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
-    {% if page > 0 %}
-      <a href="/profits?period={{ period }}&page={{ page - 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">← Назад</a>
+  {% if profits %}
+  <section class="panel">
+    <h2>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      Записи за период
+    </h2>
+    <table>
+      <thead>
+        <tr><th>Источник</th><th>Закуп</th><th>Продажа</th><th>Прибыль</th><th>Дата</th></tr>
+      </thead>
+      <tbody>
+      {% for p in profits %}
+        <tr>
+          <td>
+            {% set src = (p.type or "")|lower %}
+            {% if "fp" in src %}<span style="color:var(--blue);">🟦</span>
+            {% elif "po" in src %}<span style="color:var(--green);">🟩</span>
+            {% else %}<span style="color:var(--muted);">▫️</span>{% endif %}
+            {{ p.type or "—" }}
+          </td>
+          <td>{{ "%.2f"|format(p.buy_price or 0) }} ₽</td>
+          <td>{{ "%.2f"|format(p.sell_price or 0) }} ₽</td>
+          <td style="color: {{ 'var(--green)' if (p.profit or 0) > 0 else 'var(--red)' if (p.profit or 0) < 0 else 'var(--ink)' }}; font-weight:600;">
+            {{ "%.2f"|format(p.profit or 0) }} ₽
+          </td>
+          <td style="color:var(--muted);font-size:13px;">{{ p.date or "—" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if total_pages > 1 %}
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
+      {% if page > 0 %}
+        <a href="/profits?period={{ period }}&page={{ page - 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">← Назад</a>
+      {% endif %}
+      <span style="color:var(--muted);padding:6px 10px;font-size:14px;">Стр. {{ page + 1 }} / {{ total_pages }}</span>
+      {% if page < total_pages - 1 %}
+        <a href="/profits?period={{ period }}&page={{ page + 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">Вперёд →</a>
+      {% endif %}
+    </div>
     {% endif %}
-    <span style="color:var(--muted);padding:6px 10px;font-size:14px;">Стр. {{ page + 1 }} / {{ total_pages }}</span>
-    {% if page < total_pages - 1 %}
-      <a href="/profits?period={{ period }}&page={{ page + 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">Вперёд →</a>
-    {% endif %}
-  </div>
+  </section>
+  {% else %}
+  <section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;margin-bottom:12px;"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+    <br>Записей за выбранный период нет.
+  </section>
   {% endif %}
 </section>
-{% else %}
-<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;margin-bottom:12px;"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-  <br>Записей за выбранный период нет.
-</section>
-{% endif %}
+
+<script>
+  function showTab(tab) {
+    document.getElementById('panel-calc').style.display = tab === 'calc' ? '' : 'none';
+    document.getElementById('panel-journal').style.display = tab === 'journal' ? '' : 'none';
+    document.getElementById('tab-calc').className = tab === 'calc' ? '' : 'ghost';
+    document.getElementById('tab-journal').className = tab === 'journal' ? '' : 'ghost';
+  }
+  function showCalc(type) {
+    document.getElementById('calc-fp').style.display = type === 'fp' ? '' : 'none';
+    document.getElementById('calc-po').style.display = type === 'po' ? '' : 'none';
+    document.getElementById('sub-fp').style.background = type === 'fp' ? 'var(--accent)' : 'transparent';
+    document.getElementById('sub-fp').style.color = type === 'fp' ? '#fff' : 'var(--ink-2)';
+    document.getElementById('sub-fp').style.borderColor = type === 'fp' ? 'transparent' : 'var(--border)';
+    document.getElementById('sub-po').style.background = type === 'po' ? 'var(--accent)' : 'transparent';
+    document.getElementById('sub-po').style.color = type === 'po' ? '#fff' : 'var(--ink-2)';
+    document.getElementById('sub-po').style.borderColor = type === 'po' ? 'transparent' : 'var(--border)';
+  }
+  function fmt(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽'; }
+  function calcFP() {
+    var c = parseFloat(document.getElementById('fp-commission').value) || 0;
+    var b = parseFloat(document.getElementById('fp-buy').value) || 0;
+    var s = parseFloat(document.getElementById('fp-sell').value) || 0;
+    if (b <= 0 || s <= 0) { document.getElementById('fp-result').style.display = 'none'; return; }
+    var cv = s * c / 100, af = s - cv, pr = af - b;
+    document.getElementById('fp-comm-val').textContent = fmt(cv);
+    document.getElementById('fp-after-val').textContent = fmt(af);
+    var el = document.getElementById('fp-profit-val');
+    el.textContent = fmt(pr); el.style.color = pr > 0 ? 'var(--green)' : pr < 0 ? 'var(--red)' : 'var(--ink)';
+    document.getElementById('fp-result').style.display = '';
+  }
+  function calcPO() {
+    var sc = parseFloat(document.getElementById('po-sale').value) || 0;
+    var wc = parseFloat(document.getElementById('po-withdraw').value) || 0;
+    var b = parseFloat(document.getElementById('po-buy').value) || 0;
+    var s = parseFloat(document.getElementById('po-sell').value) || 0;
+    if (b <= 0 || s <= 0) { document.getElementById('po-result').style.display = 'none'; return; }
+    var as = s - (s * sc / 100), aw = as - (as * wc / 100), pr = aw - b;
+    document.getElementById('po-after-sale').textContent = fmt(as);
+    document.getElementById('po-after-withdraw').textContent = fmt(aw);
+    document.getElementById('po-net').textContent = fmt(aw);
+    var el = document.getElementById('po-profit-val');
+    el.textContent = fmt(pr); el.style.color = pr > 0 ? 'var(--green)' : pr < 0 ? 'var(--red)' : 'var(--ink)';
+    document.getElementById('po-result').style.display = '';
+  }
+</script>
 {% endblock %}
