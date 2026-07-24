@@ -2,6 +2,7 @@ import os
 import secrets
 import hashlib
 import json
+import asyncio
 from datetime import datetime, timedelta
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
@@ -50,6 +51,61 @@ def _notif_count_safe() -> int:
 
 
 templates.env.globals["notification_count"] = _notif_count_safe
+
+_last_notif_check = None
+
+
+async def _background_notifications():
+    global _last_notif_check
+    while True:
+        try:
+            await asyncio.sleep(300)
+            now = datetime.now()
+            today_key = now.strftime("%Y-%m-%d")
+
+            from handlers.settings import get_user_settings
+            settings = get_user_settings(ADMIN_ID)
+            report_time = settings.get("admin_report_time", "23:59")
+
+            existing = _load_notifications()
+            existing_today = [n for n in existing if n.get("time", "").startswith(today_key)]
+
+            if _last_notif_check == today_key:
+                continue
+            _last_notif_check = today_key
+
+            gk, ua = db.get_config()
+            if gk:
+                try:
+                    account = make_funpay_account(gk, ua)
+                    sales = fetch_funpay_sales(account, limit=150)
+                    unfilled = 0
+                    for sale in sales:
+                        oid = str(getattr(sale, "id", ""))
+                        if not oid:
+                            continue
+                        st = str(getattr(sale, "status", "") or "")
+                        if "refund" in st.lower():
+                            continue
+                        if orders_db.get_prime_cost(oid) is None:
+                            unfilled += 1
+                    if unfilled > 0:
+                        already = any("хвост" in n.get("text", "").lower() and today_key in n.get("time", "") for n in existing)
+                        if not already:
+                            add_notification(f"⚠️ Незаполненных заказов: {unfilled}. Пора закрыть хвосты! (отчёт в {report_time})", "warning")
+                except Exception:
+                    pass
+
+            already_report = any("админ-отчёт" in n.get("text", "").lower() and today_key in n.get("time", "") for n in existing)
+            if not already_report:
+                add_notification(f"📊 Ежедневный админ-отчёт будет в {report_time}", "info")
+        except Exception:
+            pass
+
+
+@app.on_event("startup")
+async def start_background_tasks():
+    asyncio.create_task(_background_notifications())
 
 
 @app.exception_handler(HTTPException)
