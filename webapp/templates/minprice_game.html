@@ -7,12 +7,12 @@
 </header>
 
 <section class="toolbar">
-  <div class="inline-form">
-    <a href="/minprice" class="btn ghost" style="text-decoration:none;">← Назад к играм</a>
+  <div class="inline-form" style="flex-wrap:wrap;">
+    <a href="/minprice" class="btn ghost" style="text-decoration:none;">← Назад</a>
     <form method="post" action="/minprice/game/{{ game_hash }}/sbp" style="display:flex;gap:8px;align-items:center;">
       <label style="margin:0;font-size:13px;color:var(--muted);">СБП:</label>
       <input name="sbp_rate" value="{{ sbp_rate or '' }}" placeholder="0.8765" style="max-width:120px;" step="0.0001">
-      <button type="submit" style="padding:6px 14px;font-size:13px;">Сохранить</button>
+      <button type="submit" style="padding:6px 14px;font-size:13px;">OK</button>
     </form>
   </div>
 </section>
@@ -27,33 +27,44 @@
   </form>
 </section>
 
+<section class="panel">
+  <h2>🔗 Привязка лотов</h2>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">ИИ сопоставит товары с лотами на FunPay и заполнит offer ID автоматически.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button onclick="autolink('all')" id="btn-link-all" style="background:var(--accent);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+      Сопоставить все
+    </button>
+    <button onclick="autolink('unlinked')" id="btn-link-unlinked" class="ghost">
+      Только без лотов
+    </button>
+  </div>
+  <div id="autolink-result" style="margin-top:12px;font-size:13px;"></div>
+</section>
+
 {% if groups %}
 <section class="panel">
-  <h2>Товары</h2>
+  <h2>Товары ({{ total }})</h2>
   {% for group_name, variants in groups %}
   <div style="border-bottom:1px solid var(--border);padding:14px 0;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-      <h3 style="margin:0;font-size:15px;">{{ loop.index + page * 20 }}. {{ group_name }}</h3>
-    </div>
+    <h3 style="margin:0 0 8px;font-size:15px;color:var(--ink);">{{ loop.index + page * 20 }}. {{ group_name }}</h3>
     {% for v in variants %}
-    <div style="margin:8px 0 8px 16px;padding:10px;background:var(--bg-2);border-radius:8px;border:1px solid var(--border);">
+    <div style="margin:6px 0 6px 16px;padding:10px 14px;background:var(--bg-2);border-radius:8px;border:1px solid var(--border);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           {% if v.cashback == "yes" %}<span class="pill ok">💳 с кэшбеком</span>
           {% elif v.cashback == "no" %}<span class="pill warn">💵 без кэшбека</span>
           {% else %}<span class="pill">— нет кэшбека</span>{% endif %}
-          <span style="margin-left:12px;color:var(--muted);font-size:13px;">Закуп: <b style="color:var(--ink);">{{ "%.2f"|format(v.cost or 0) }} ₽</b></span>
-          <span style="margin-left:12px;color:var(--muted);font-size:13px;">Мин: <b style="color:var(--accent);">{{ "%.2f"|format(v.min_price or 0) }} ₽</b></span>
+          <span style="color:var(--muted);font-size:13px;">Закуп: <b style="color:var(--ink);">{{ "%.2f"|format(v.cost or 0) }} ₽</b></span>
+          <span style="color:var(--muted);font-size:13px;">Мин: <b style="color:var(--accent);">{{ "%.2f"|format(v.min_price or 0) }} ₽</b></span>
           {% if sbp_rate %}
-          <span style="margin-left:12px;color:var(--muted);font-size:13px;">Сайт: <b style="color:var(--green);">{{ "%.2f"|format((v.min_price or 0) * sbp_rate) }} ₽</b></span>
+          <span style="color:var(--muted);font-size:13px;">Сайт: <b style="color:var(--green);">{{ "%.2f"|format((v.min_price or 0) * sbp_rate) }} ₽</b></span>
           {% endif %}
         </div>
-        <div style="display:flex;gap:6px;">
-          <form method="post" action="/minprice/game/{{ game_hash }}/delete" style="display:inline;" onsubmit="return confirm('Удалить?')">
-            <input type="hidden" name="item_id" value="{{ v.id }}">
-            <button class="danger" type="submit" style="padding:3px 8px;font-size:11px;">✕</button>
-          </form>
-        </div>
+        <form method="post" action="/minprice/game/{{ game_hash }}/delete" style="display:inline;" onsubmit="return confirm('Удалить?')">
+          <input type="hidden" name="item_id" value="{{ v.id }}">
+          <button class="danger" type="submit" style="padding:3px 8px;font-size:11px;">✕</button>
+        </form>
       </div>
       {% if v.offer_ids %}
       <div style="margin-top:6px;font-size:12px;color:var(--muted);">
@@ -61,7 +72,7 @@
       </div>
       {% endif %}
       <details style="margin-top:8px;">
-        <summary style="cursor:pointer;font-size:12px;color:var(--muted);">Редактировать</summary>
+        <summary style="cursor:pointer;font-size:12px;color:var(--muted);">✏️ Редактировать</summary>
         <form method="post" action="/minprice/game/{{ game_hash }}/edit/{{ v.id }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
           <input name="item_name" value="{{ v.name }}" style="max-width:180px;font-size:13px;">
           <input name="cost" value="{{ "%.2f"|format(v.cost or 0) }}" style="max-width:120px;font-size:13px;" step="0.01">
@@ -100,4 +111,31 @@
   <p>Товаров пока нет. Добавьте первый!</p>
 </section>
 {% endif %}
+
+<script>
+async function autolink(mode) {
+  const btn = document.getElementById('btn-link-' + mode);
+  const res = document.getElementById('autolink-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Сопоставляю...';
+  res.innerHTML = '<span style="color:var(--muted);">ИИ анализирует лоты...</span>';
+  try {
+    const fd = new FormData();
+    fd.append('mode', mode);
+    const r = await fetch('/minprice/game/{{ game_hash }}/autolink', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (data.ok) {
+      res.innerHTML = '<span style="color:var(--green);">Найдено лотов: ' + data.lots_found + ' | Сопоставлено: ' + data.saved + ' из ' + data.total + '</span>';
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      res.innerHTML = '<span style="color:var(--red);">' + (data.error || 'Ошибка') + '</span>';
+    }
+  } catch (e) {
+    res.innerHTML = '<span style="color:var(--red);">Ошибка: ' + e.message + '</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = mode === 'all' ? 'Сопоставить все' : 'Только без лотов';
+  }
+}
+</script>
 {% endblock %}

@@ -840,6 +840,52 @@ async def minprice_set_offer(request: Request, game_hash: str, item_id: str = Fo
     return redirect_to(f"/minprice/game/{game_hash}")
 
 
+@app.post("/minprice/game/{game_hash}/autolink")
+async def minprice_autolink(request: Request, game_hash: str, user=Depends(require_session)):
+    from handlers.minprice import _get_user_lots, _match_offers_with_ai, CASHBACK_OPTIONS
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return JSONResponse({"ok": False, "error": "Игра не найдена"})
+
+    form = await request.form()
+    mode = str(form.get("mode", "all"))
+
+    lots = await _get_user_lots(game_name)
+    if not lots:
+        return JSONResponse({"ok": False, "error": "Лоты не найдены на FunPay"})
+
+    items = _mp_items(mp, game_name)
+    if mode == "unlinked":
+        items = {iid: info for iid, info in items.items() if isinstance(info, dict) and not _mp_offer_ids(info)}
+
+    if not items:
+        return JSONResponse({"ok": False, "error": "Нет товаров для сопоставления"})
+
+    matches = await _match_offers_with_ai(game_name, lots, items)
+
+    saved = 0
+    for full_name, offer_ids in matches.items():
+        for item_id, info in mp[game_name].items():
+            if item_id == "_meta" or not isinstance(info, dict):
+                continue
+            name = info.get("name", "")
+            cashback = info.get("cashback", "none")
+            cb_label = CASHBACK_OPTIONS.get(cashback, "")
+            item_full = f"{name} ({cb_label})" if cb_label else name
+            if item_full == full_name:
+                mp[game_name][item_id]["offer_ids"] = offer_ids
+                saved += 1
+                break
+
+    _save_mp(ADMIN_ID, mp)
+    return JSONResponse({"ok": True, "saved": saved, "total": len(matches), "lots_found": len(lots)})
+
+
 # ====================== DEMPING ======================
 
 @app.get("/demping")
