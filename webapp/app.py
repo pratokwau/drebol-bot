@@ -355,6 +355,11 @@ async def orders_page(
     )
 
 
+@app.get("/calc")
+async def calc_page(request: Request, user=Depends(require_session)):
+    return templates.TemplateResponse(request=request, name="calc.html", context={"user": user})
+
+
 @app.get("/profits")
 async def profits_page(request: Request, page: int = 0, user=Depends(require_session)):
     profits = _load_admin_profits()

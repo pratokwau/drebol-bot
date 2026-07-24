@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Расчёты · Drebolbot{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Расчёты</h1>
+  <p>Калькуляторы прибыли для FunPay и PlayerOK.</p>
+</header>
+
+<div style="display:flex;gap:8px;margin-bottom:20px;">
+  <button id="tab-fp" onclick="showTab('fp')" style="background:var(--accent);">🧮 FunPay</button>
+  <button id="tab-po" onclick="showTab('po')" class="ghost">🧮 PlayerOK</button>
+</div>
+
+<!-- FUNPAY CALCULATOR -->
+<section id="panel-fp" class="panel">
+  <h2>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
+    Расчёт FunPay
+  </h2>
+  <div class="form-grid" style="margin-bottom:16px;">
+    <label>Комиссия (%)
+      <input id="fp-commission" type="number" step="0.01" value="3" oninput="calcFP()">
+    </label>
+    <div></div>
+    <label>Закупка (₽)
+      <input id="fp-buy" type="number" step="0.01" placeholder="1500" oninput="calcFP()">
+    </label>
+    <label>Продажа (₽)
+      <input id="fp-sell" type="number" step="0.01" placeholder="2200" oninput="calcFP()">
+    </label>
+  </div>
+  <div id="fp-result" style="display:none;">
+    <div style="border-top:1px solid var(--border);padding-top:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center;">
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Комиссия</div>
+          <div id="fp-comm-val" style="font-size:22px;font-weight:700;color:var(--yellow);margin-top:4px;">0 ₽</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Получишь</div>
+          <div id="fp-after-val" style="font-size:22px;font-weight:700;color:var(--ink);margin-top:4px;">0 ₽</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Прибыль</div>
+          <div id="fp-profit-val" style="font-size:22px;font-weight:700;color:var(--green);margin-top:4px;">0 ₽</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLAYEROK CALCULATOR -->
+<section id="panel-po" class="panel" style="display:none;">
+  <h2>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
+    Расчёт PlayerOK
+  </h2>
+  <div class="form-grid" style="margin-bottom:16px;">
+    <label>Комиссия продажи (%)
+      <input id="po-sale" type="number" step="0.01" value="10" oninput="calcPO()">
+    </label>
+    <label>Комиссия вывода (%)
+      <input id="po-withdraw" type="number" step="0.01" value="5" oninput="calcPO()">
+    </label>
+    <label>Закупка (₽)
+      <input id="po-buy" type="number" step="0.01" placeholder="1500" oninput="calcPO()">
+    </label>
+    <label>Продажа (₽)
+      <input id="po-sell" type="number" step="0.01" placeholder="2000" oninput="calcPO()">
+    </label>
+  </div>
+  <div id="po-result" style="display:none;">
+    <div style="border-top:1px solid var(--border);padding-top:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;text-align:center;">
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Продажа − %</div>
+          <div id="po-after-sale" style="font-size:20px;font-weight:700;color:var(--yellow);margin-top:4px;">0 ₽</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Вывод − %</div>
+          <div id="po-after-withdraw" style="font-size:20px;font-weight:700;color:var(--yellow);margin-top:4px;">0 ₽</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Итого получишь</div>
+          <div id="po-net" style="font-size:20px;font-weight:700;color:var(--ink);margin-top:4px;">0 ₽</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Прибыль</div>
+          <div id="po-profit-val" style="font-size:20px;font-weight:700;color:var(--green);margin-top:4px;">0 ₽</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function showTab(tab) {
+    document.getElementById('panel-fp').style.display = tab === 'fp' ? '' : 'none';
+    document.getElementById('panel-po').style.display = tab === 'po' ? '' : 'none';
+    document.getElementById('tab-fp').className = tab === 'fp' ? '' : 'ghost';
+    document.getElementById('tab-po').className = tab === 'po' ? '' : 'ghost';
+  }
+
+  function fmt(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽'; }
+
+  function calcFP() {
+    var commission = parseFloat(document.getElementById('fp-commission').value) || 0;
+    var buy = parseFloat(document.getElementById('fp-buy').value) || 0;
+    var sell = parseFloat(document.getElementById('fp-sell').value) || 0;
+    if (buy <= 0 || sell <= 0) { document.getElementById('fp-result').style.display = 'none'; return; }
+    var commVal = sell * commission / 100;
+    var afterComm = sell - commVal;
+    var profit = afterComm - buy;
+    document.getElementById('fp-comm-val').textContent = fmt(commVal);
+    document.getElementById('fp-after-val').textContent = fmt(afterComm);
+    var profitEl = document.getElementById('fp-profit-val');
+    profitEl.textContent = fmt(profit);
+    profitEl.style.color = profit > 0 ? 'var(--green)' : profit < 0 ? 'var(--red)' : 'var(--ink)';
+    document.getElementById('fp-result').style.display = '';
+  }
+
+  function calcPO() {
+    var saleC = parseFloat(document.getElementById('po-sale').value) || 0;
+    var withdrawC = parseFloat(document.getElementById('po-withdraw').value) || 0;
+    var buy = parseFloat(document.getElementById('po-buy').value) || 0;
+    var sell = parseFloat(document.getElementById('po-sell').value) || 0;
+    if (buy <= 0 || sell <= 0) { document.getElementById('po-result').style.display = 'none'; return; }
+    var afterSale = sell - (sell * saleC / 100);
+    var afterWithdraw = afterSale - (afterSale * withdrawC / 100);
+    var profit = afterWithdraw - buy;
+    document.getElementById('po-after-sale').textContent = fmt(afterSale);
+    document.getElementById('po-after-withdraw').textContent = fmt(afterWithdraw);
+    document.getElementById('po-net').textContent = fmt(afterWithdraw);
+    var profitEl = document.getElementById('po-profit-val');
+    profitEl.textContent = fmt(profit);
+    profitEl.style.color = profit > 0 ? 'var(--green)' : profit < 0 ? 'var(--red)' : 'var(--ink)';
+    document.getElementById('po-result').style.display = '';
+  }
+</script>
+{% endblock %}
