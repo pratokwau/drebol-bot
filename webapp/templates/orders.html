@@ -151,7 +151,7 @@
       const data = await res.json();
       if (!data.ok) { aiLog('❌ ' + (data.error || 'Ошибка')); return; }
 
-      aiLog('📋 Найдено заказов: ' + data.total);
+      aiLog('📋 Найдено заказов: ' + data.total + ' | Совпадений: ' + data.matched);
       aiLog('⏳ Начинаю обработку...');
 
       for (let i = 0; i < data.orders.length && aiRunning; i++) {
