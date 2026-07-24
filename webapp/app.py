@@ -1,5 +1,6 @@
 import os
 import secrets
+import hashlib
 from datetime import datetime, timedelta
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
@@ -15,6 +16,17 @@ from handlers.funpay_admin import (
     fetch_funpay_sales,
     get_auto_buy_prices,
     make_funpay_account,
+)
+from handlers.minprice import (
+    load_mp as _load_mp,
+    save_mp as _save_mp,
+    calc_min_price as _calc_min_price,
+    get_hash as _mp_hash,
+    get_items as _mp_items,
+    get_game_meta as _mp_meta,
+    set_game_meta as _mp_set_meta,
+    get_item_offer_ids as _mp_offer_ids,
+    CASHBACK_OPTIONS as _CASHBACK_OPTS,
 )
 
 
@@ -578,3 +590,228 @@ async def revoke_all_sessions(user=Depends(require_session)):
         if revoked and session_id != user["session_id"]:
             web_db.delete_session(session_id)
     return redirect_to("/settings")
+
+
+# ====================== MINPRICE ======================
+
+@app.get("/minprice")
+async def minprice_page(request: Request, user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    games = []
+    for game_name in sorted(mp.keys()):
+        items = _mp_items(mp, game_name)
+        meta = _mp_meta(mp, game_name)
+        unique_names = set()
+        linked_names = set()
+        for _, info in items.items():
+            if not isinstance(info, dict):
+                continue
+            name = info.get("name", "")
+            unique_names.add(name)
+            if _mp_offer_ids(info):
+                linked_names.add(name)
+        games.append({
+            "name": game_name,
+            "hash": _mp_hash(game_name),
+            "items_count": len(unique_names),
+            "linked_count": len(linked_names),
+            "sbp_rate": meta.get("sbp_rate"),
+        })
+    return templates.TemplateResponse(request=request, name="minprice.html", context={
+        "user": user, "games": games, "total_games": len(games),
+    })
+
+
+@app.post("/minprice/add-game")
+async def minprice_add_game(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    game_name = str(form.get("game_name", "")).strip()
+    if game_name:
+        mp = _load_mp(ADMIN_ID)
+        if game_name not in mp:
+            mp[game_name] = {}
+        _save_mp(ADMIN_ID, mp)
+    return redirect_to("/minprice")
+
+
+@app.post("/minprice/delete-game")
+async def minprice_delete_game(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    game_name = str(form.get("game_name", "")).strip()
+    if game_name:
+        mp = _load_mp(ADMIN_ID)
+        if game_name in mp:
+            del mp[game_name]
+            _save_mp(ADMIN_ID, mp)
+    return redirect_to("/minprice")
+
+
+@app.get("/minprice/game/{game_hash}")
+async def minprice_game_page(request: Request, game_hash: str, page: int = 0, user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return redirect_to("/minprice")
+
+    meta = _mp_meta(mp, game_name)
+    items = _mp_items(mp, game_name)
+    sbp_rate = meta.get("sbp_rate")
+
+    groups = {}
+    for item_id, info in items.items():
+        if not isinstance(info, dict):
+            continue
+        name = info.get("name", item_id)
+        if name not in groups:
+            groups[name] = []
+        groups[name].append({"id": item_id, **info})
+
+    sorted_groups = sorted(groups.items(), key=lambda x: x[0].lower())
+    per_page = 20
+    total = len(sorted_groups)
+    total_pages = max(1, (total - 1) // per_page + 1)
+    page = max(0, min(page, total_pages - 1))
+    page_groups = sorted_groups[page * per_page:(page + 1) * per_page]
+
+    return templates.TemplateResponse(request=request, name="minprice_game.html", context={
+        "user": user,
+        "game_name": game_name,
+        "game_hash": game_hash,
+        "groups": page_groups,
+        "page": page,
+        "total_pages": total_pages,
+        "total": total,
+        "sbp_rate": sbp_rate,
+        "cashback_options": _CASHBACK_OPTS,
+        "offer_link": lambda oid: f"https://funpay.com/lots/offer?id={oid}",
+    })
+
+
+@app.post("/minprice/game/{game_hash}/add")
+async def minprice_add_item(request: Request, game_hash: str, user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return redirect_to("/minprice")
+
+    form = await request.form()
+    item_name = str(form.get("item_name", "")).strip()
+    cost_no = _money(str(form.get("cost_no", "0")).replace(",", "."))
+    cost_yes = _money(str(form.get("cost_yes", "0")).replace(",", "."))
+
+    if not item_name:
+        return redirect_to(f"/minprice/game/{game_hash}")
+
+    if game_name not in mp:
+        mp[game_name] = {}
+
+    uid = hashlib.md5(f"{item_name}_no_{secrets.token_hex(4)}".encode()).hexdigest()[:8]
+    mp[game_name][uid] = {
+        "name": item_name, "cost": cost_no, "min_price": _calc_min_price(cost_no), "cashback": "no",
+    }
+
+    if cost_yes > 0:
+        uid_yes = hashlib.md5(f"{item_name}_yes_{secrets.token_hex(4)}".encode()).hexdigest()[:8]
+        mp[game_name][uid_yes] = {
+            "name": item_name, "cost": cost_yes, "min_price": _calc_min_price(cost_yes), "cashback": "yes",
+        }
+
+    _save_mp(ADMIN_ID, mp)
+    return redirect_to(f"/minprice/game/{game_hash}")
+
+
+@app.post("/minprice/game/{game_hash}/edit/{item_id}")
+async def minprice_edit_item(request: Request, game_hash: str, item_id: str, user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name or item_id not in mp.get(game_name, {}):
+        return redirect_to(f"/minprice/game/{game_hash}")
+
+    form = await request.form()
+    new_name = str(form.get("item_name", "")).strip()
+    new_cost = _money(str(form.get("cost", "0")).replace(",", "."))
+    new_cashback = str(form.get("cashback", "none")).strip()
+
+    if new_name:
+        mp[game_name][item_id]["name"] = new_name
+    if new_cost > 0:
+        mp[game_name][item_id]["cost"] = new_cost
+        mp[game_name][item_id]["min_price"] = _calc_min_price(new_cost)
+    if new_cashback in ("yes", "no", "none"):
+        mp[game_name][item_id]["cashback"] = new_cashback
+
+    _save_mp(ADMIN_ID, mp)
+    return redirect_to(f"/minprice/game/{game_hash}")
+
+
+@app.post("/minprice/game/{game_hash}/delete")
+async def minprice_delete_items(request: Request, game_hash: str, user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return redirect_to("/minprice")
+
+    form = await request.form()
+    item_id = str(form.get("item_id", "")).strip()
+    if item_id and item_id in mp.get(game_name, {}):
+        del mp[game_name][item_id]
+        _save_mp(ADMIN_ID, mp)
+    return redirect_to(f"/minprice/game/{game_hash}")
+
+
+@app.post("/minprice/game/{game_hash}/sbp")
+async def minprice_set_sbp(request: Request, game_hash: str, user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return redirect_to("/minprice")
+
+    form = await request.form()
+    rate = _money(str(form.get("sbp_rate", "0")).replace(",", "."))
+    if rate > 0:
+        meta = _mp_meta(mp, game_name)
+        meta["sbp_rate"] = rate
+        _mp_set_meta(mp, game_name, meta)
+        _save_mp(ADMIN_ID, mp)
+    return redirect_to(f"/minprice/game/{game_hash}")
+
+
+@app.post("/minprice/game/{game_hash}/offer")
+async def minprice_set_offer(request: Request, game_hash: str, item_id: str = Form(...), offer_ids: str = Form(""), user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name or item_id not in mp.get(game_name, {}):
+        return redirect_to(f"/minprice/game/{game_hash}")
+
+    ids = []
+    for part in offer_ids.replace(",", " ").split():
+        part = part.strip().lstrip("#")
+        if part.isdigit():
+            ids.append(int(part))
+    mp[game_name][item_id]["offer_ids"] = ids
+    _save_mp(ADMIN_ID, mp)
+    return redirect_to(f"/minprice/game/{game_hash}")

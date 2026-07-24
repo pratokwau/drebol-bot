@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Сертификаты · Drebolbot{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Сертификаты</h1>
+  <p>Управление подарочными сертификатами и отправка в Cardinal.</p>
+</header>
+
+<section class="grid">
+  <article class="card">
+    <div class="card-icon green">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+    </div>
+    <span class="label">Игр</span>
+    <strong>{{ games|length }}</strong>
+  </article>
+  <article class="card">
+    <div class="card-icon purple">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+    </div>
+    <span class="label">Лотов в демпинге</span>
+    <strong>{{ demping_count }}</strong>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Действия</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <form method="post" action="/certs/send-cardinal" style="display:inline;">
+      <button type="submit" style="background:var(--green);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        Отправить в Cardinal
+      </button>
+    </form>
+    <button onclick="updateDemping()" style="background:var(--accent);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      Обновить демпинг-файл
+    </button>
+  </div>
+  <div id="update-result" style="margin-top:12px;font-size:14px;"></div>
+</section>
+
+{% if games %}
+<section class="panel">
+  <h2>Игры</h2>
+  <table>
+    <thead>
+      <tr><th>Игра</th><th>Товаров</th><th>Коэффициент</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for g in games %}
+      <tr>
+        <td><a href="/certs/game/{{ g.hash }}" style="color:var(--accent);text-decoration:none;font-weight:600;">{{ g.name }}</a></td>
+        <td>{{ g.items_count }}</td>
+        <td>{% if g.rate > 0 %}<span style="color:var(--green);">{{ g.rate }}</span>{% else %}<span style="color:var(--muted);">—</span>{% endif %}</td>
+        <td><a href="/certs/game/{{ g.hash }}" class="btn ghost" style="padding:4px 10px;font-size:12px;text-decoration:none;">Открыть</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+  <p>Сертификатов пока нет. Добавьте через бота.</p>
+</section>
+{% endif %}
+
+<script>
+async function updateDemping() {
+  const res = await fetch('/certs/update-demping', { method: 'POST' });
+  const data = await res.json();
+  document.getElementById('update-result').innerHTML = data.ok
+    ? '<span style="color:var(--green);">Обновлено лотов: ' + data.updated + '</span>'
+    : '<span style="color:var(--red);">Ошибка</span>';
+}
+</script>
+{% endblock %}

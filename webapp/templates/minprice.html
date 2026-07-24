@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Минпрайс · Drebolbot{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Минимальные цены</h1>
+  <p>Управление играми, товарами и ставками СБП.</p>
+</header>
+
+<section class="panel">
+  <h2>Добавить игру</h2>
+  <form method="post" action="/minprice/add-game" class="inline-form">
+    <input name="game_name" placeholder="Название игры" style="min-width:300px;" required>
+    <button type="submit">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      Добавить
+    </button>
+  </form>
+</section>
+
+<section class="grid">
+  <article class="card">
+    <div class="card-icon purple">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+    </div>
+    <span class="label">Игр</span>
+    <strong>{{ total_games }}</strong>
+  </article>
+</section>
+
+{% if games %}
+<section class="panel">
+  <h2>Игры</h2>
+  <table>
+    <thead>
+      <tr><th>Игра</th><th>Товаров</th><th>С лотами</th><th>СБП</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for g in games %}
+      <tr>
+        <td><a href="/minprice/game/{{ g.hash }}" style="color:var(--accent);text-decoration:none;font-weight:600;">{{ g.name }}</a></td>
+        <td>{{ g.items_count }}</td>
+        <td>{{ g.linked_count }}</td>
+        <td>{% if g.sbp_rate %}<span style="color:var(--green);">{{ g.sbp_rate }}</span>{% else %}<span style="color:var(--muted);">—</span>{% endif %}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <a href="/minprice/game/{{ g.hash }}" class="btn ghost" style="padding:4px 10px;font-size:12px;text-decoration:none;">Открыть</a>
+            <form method="post" action="/minprice/delete-game" style="display:inline;" onsubmit="return confirm('Удалить игру {{ g.name }}?')">
+              <input type="hidden" name="game_name" value="{{ g.name }}">
+              <button class="danger" type="submit" style="padding:4px 10px;font-size:12px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+  <p>Игр пока нет. Добавьте первую!</p>
+</section>
+{% endif %}
+{% endblock %}

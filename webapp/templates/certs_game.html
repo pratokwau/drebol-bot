@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ game_name }} · Сертификаты{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>{{ game_name }}</h1>
+  <p>Сертификаты и коэффициент.</p>
+</header>
+
+<section class="toolbar">
+  <div class="inline-form">
+    <a href="/certs" class="btn ghost" style="text-decoration:none;">← Назад</a>
+    <form method="post" action="/certs/game/{{ game_hash }}/rate" style="display:flex;gap:8px;align-items:center;">
+      <label style="margin:0;font-size:13px;color:var(--muted);">Коэффициент:</label>
+      <input name="rate" value="{{ rate or '' }}" placeholder="1.0" style="max-width:120px;" step="0.01">
+      <button type="submit" style="padding:6px 14px;font-size:13px;">Сохранить</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Добавить сертификат</h2>
+  <form method="post" action="/certs/game/{{ game_hash }}/add" class="inline-form" style="flex-wrap:wrap;">
+    <input name="item_name" placeholder="Название" style="min-width:200px;" required>
+    <input name="cost" placeholder="Закуп" style="max-width:120px;" step="0.01">
+    <input name="offer_id" placeholder="Offer ID" style="max-width:120px;">
+    <button type="submit">Добавить</button>
+  </form>
+</section>
+
+{% if items %}
+<section class="panel">
+  <h2>Товары ({{ items|length }})</h2>
+  <table>
+    <thead>
+      <tr><th>Название</th><th>Закуп</th><th>Мин. цена</th><th>Offer ID</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for item_id, info in items.items() %}
+      <tr>
+        <td>{{ info.name or item_id }}</td>
+        <td>{{ "%.2f"|format(info.cost or 0) }} ₽</td>
+        <td style="color:var(--accent);">{{ "%.2f"|format(info.min_price or 0) }} ₽</td>
+        <td>
+          {% if info.offer_id %}
+            <a href="https://funpay.com/lots/offer?id={{ info.offer_id }}" target="_blank" style="color:var(--accent);">#{{ info.offer_id }}</a>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/certs/game/{{ game_hash }}/delete" style="display:inline;" onsubmit="return confirm('Удалить?')">
+            <input type="hidden" name="item_id" value="{{ item_id }}">
+            <button class="danger" type="submit" style="padding:3px 8px;font-size:11px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+  <p>Сертификатов пока нет.</p>
+</section>
+{% endif %}
+{% endblock %}

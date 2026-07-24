@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ game_name }} · Минпрайс{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>{{ game_name }}</h1>
+  <p>Товары, цены и лоты. Всего групп: {{ total }}.</p>
+</header>
+
+<section class="toolbar">
+  <div class="inline-form">
+    <a href="/minprice" class="btn ghost" style="text-decoration:none;">← Назад к играм</a>
+    <form method="post" action="/minprice/game/{{ game_hash }}/sbp" style="display:flex;gap:8px;align-items:center;">
+      <label style="margin:0;font-size:13px;color:var(--muted);">СБП:</label>
+      <input name="sbp_rate" value="{{ sbp_rate or '' }}" placeholder="0.8765" style="max-width:120px;" step="0.0001">
+      <button type="submit" style="padding:6px 14px;font-size:13px;">Сохранить</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Добавить товар</h2>
+  <form method="post" action="/minprice/game/{{ game_hash }}/add" class="inline-form" style="flex-wrap:wrap;">
+    <input name="item_name" placeholder="Название товара" style="min-width:200px;" required>
+    <input name="cost_no" placeholder="Закуп без кэшбека" style="max-width:160px;" step="0.01">
+    <input name="cost_yes" placeholder="Закуп с кэшбеком (0 = нет)" style="max-width:180px;" step="0.01">
+    <button type="submit">Добавить</button>
+  </form>
+</section>
+
+{% if groups %}
+<section class="panel">
+  <h2>Товары</h2>
+  {% for group_name, variants in groups %}
+  <div style="border-bottom:1px solid var(--border);padding:14px 0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <h3 style="margin:0;font-size:15px;">{{ loop.index + page * 20 }}. {{ group_name }}</h3>
+    </div>
+    {% for v in variants %}
+    <div style="margin:8px 0 8px 16px;padding:10px;background:var(--bg-2);border-radius:8px;border:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          {% if v.cashback == "yes" %}<span class="pill ok">💳 с кэшбеком</span>
+          {% elif v.cashback == "no" %}<span class="pill warn">💵 без кэшбека</span>
+          {% else %}<span class="pill">— нет кэшбека</span>{% endif %}
+          <span style="margin-left:12px;color:var(--muted);font-size:13px;">Закуп: <b style="color:var(--ink);">{{ "%.2f"|format(v.cost or 0) }} ₽</b></span>
+          <span style="margin-left:12px;color:var(--muted);font-size:13px;">Мин: <b style="color:var(--accent);">{{ "%.2f"|format(v.min_price or 0) }} ₽</b></span>
+          {% if sbp_rate %}
+          <span style="margin-left:12px;color:var(--muted);font-size:13px;">Сайт: <b style="color:var(--green);">{{ "%.2f"|format((v.min_price or 0) * sbp_rate) }} ₽</b></span>
+          {% endif %}
+        </div>
+        <div style="display:flex;gap:6px;">
+          <form method="post" action="/minprice/game/{{ game_hash }}/delete" style="display:inline;" onsubmit="return confirm('Удалить?')">
+            <input type="hidden" name="item_id" value="{{ v.id }}">
+            <button class="danger" type="submit" style="padding:3px 8px;font-size:11px;">✕</button>
+          </form>
+        </div>
+      </div>
+      {% if v.offer_ids %}
+      <div style="margin-top:6px;font-size:12px;color:var(--muted);">
+        🔗 Лоты: {% for oid in v.offer_ids %}<a href="https://funpay.com/lots/offer?id={{ oid }}" target="_blank" style="color:var(--accent);">#{{ oid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+      <details style="margin-top:8px;">
+        <summary style="cursor:pointer;font-size:12px;color:var(--muted);">Редактировать</summary>
+        <form method="post" action="/minprice/game/{{ game_hash }}/edit/{{ v.id }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+          <input name="item_name" value="{{ v.name }}" style="max-width:180px;font-size:13px;">
+          <input name="cost" value="{{ "%.2f"|format(v.cost or 0) }}" style="max-width:120px;font-size:13px;" step="0.01">
+          <select name="cashback" style="max-width:140px;font-size:13px;">
+            <option value="no" {{ "selected" if v.cashback == "no" else "" }}>без кэшбека</option>
+            <option value="yes" {{ "selected" if v.cashback == "yes" else "" }}>с кэшбеком</option>
+            <option value="none" {{ "selected" if v.cashback == "none" else "" }}>нет кэшбека</option>
+          </select>
+          <button type="submit" style="padding:4px 12px;font-size:12px;">Сохранить</button>
+        </form>
+        <form method="post" action="/minprice/game/{{ game_hash }}/offer" style="display:flex;gap:8px;margin-top:6px;align-items:center;">
+          <input type="hidden" name="item_id" value="{{ v.id }}">
+          <input name="offer_ids" value="{{ v.offer_ids|join(', ') if v.offer_ids else '' }}" placeholder="ID лотов через запятую" style="max-width:250px;font-size:13px;">
+          <button type="submit" style="padding:4px 12px;font-size:12px;">Лоты</button>
+        </form>
+      </details>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {% if total_pages > 1 %}
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
+    {% if page > 0 %}
+      <a href="/minprice/game/{{ game_hash }}?page={{ page - 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">← Назад</a>
+    {% endif %}
+    <span style="color:var(--muted);padding:6px 10px;font-size:14px;">Стр. {{ page + 1 }} / {{ total_pages }}</span>
+    {% if page < total_pages - 1 %}
+      <a href="/minprice/game/{{ game_hash }}?page={{ page + 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">Вперёд →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+  <p>Товаров пока нет. Добавьте первый!</p>
+</section>
+{% endif %}
+{% endblock %}

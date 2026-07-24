@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Демпинг · Drebolbot{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Демпинг Cardinal</h1>
+  <p>Управление файлом price_optimizer_lots.json.</p>
+</header>
+
+<section class="grid">
+  <article class="card">
+    <div class="card-icon blue">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+    </div>
+    <span class="label">Лотов в файле</span>
+    <strong>{{ lot_count }}</strong>
+  </article>
+  <article class="card">
+    <div class="card-icon green">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+    </div>
+    <span class="label">Путь</span>
+    <strong style="font-size:13px;word-break:break-all;">{{ settings.target_path }}</strong>
+  </article>
+  <article class="card">
+    <div class="card-icon yellow">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+    </div>
+    <span class="label">Команда</span>
+    <strong style="font-size:13px;word-break:break-all;">{{ settings.restart_command }}</strong>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Загрузить файл</h2>
+  <form method="post" action="/demping/upload" enctype="multipart/form-data" class="inline-form">
+    <input type="file" name="file" accept=".json" required>
+    <button type="submit">Загрузить</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Настройки Cardinal</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <form method="post" action="/demping/set-path">
+      <label>Путь к файлам
+        <input name="target_path" value="{{ settings.target_path }}">
+      </label>
+      <button type="submit" style="margin-top:8px;">Сохранить путь</button>
+    </form>
+    <form method="post" action="/demping/set-restart">
+      <label>Команда перезагрузки
+        <input name="restart_command" value="{{ settings.restart_command }}">
+      </label>
+      <button type="submit" style="margin-top:8px;">Сохранить команду</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Действия</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <form method="post" action="/demping/send-cardinal" style="display:inline;">
+      <button type="submit" style="background:var(--green);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        Отправить в Cardinal
+      </button>
+    </form>
+    <button onclick="updatePrices()" style="background:var(--accent);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      Обновить цены из минпрайса
+    </button>
+  </div>
+  <div id="update-result" style="margin-top:12px;font-size:14px;"></div>
+</section>
+
+<script>
+async function updatePrices() {
+  const res = await fetch('/demping/update-prices', { method: 'POST' });
+  const data = await res.json();
+  document.getElementById('update-result').innerHTML = data.ok
+    ? '<span style="color:var(--green);">Обновлено лотов: ' + data.updated + '</span>'
+    : '<span style="color:var(--red);">Ошибка</span>';
+}
+</script>
+{% endblock %}
