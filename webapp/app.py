@@ -44,7 +44,7 @@ def _notif_count_safe() -> int:
     try:
         if os.path.exists(NOTIFICATIONS_FILE):
             with open(NOTIFICATIONS_FILE, encoding="utf-8") as f:
-                return len(json.load(f))
+                return sum(1 for n in json.load(f) if not n.get("read"))
     except Exception:
         pass
     return 0
@@ -554,27 +554,32 @@ def _save_notifications(data: list):
 
 def add_notification(text: str, ntype: str = "info"):
     notifs = _load_notifications()
-    notifs.insert(0, {"text": text, "type": ntype, "time": datetime.now().strftime("%d.%m.%Y %H:%M")})
-    _save_notifications(notifs[:50])
+    notifs.insert(0, {"text": text, "type": ntype, "time": datetime.now().strftime("%d.%m.%Y %H:%M"), "read": False})
+    _save_notifications(notifs[:200])
+
+
+def _unread_count() -> int:
+    return sum(1 for n in _load_notifications() if not n.get("read"))
+
+
+def _mark_all_read():
+    notifs = _load_notifications()
+    changed = False
+    for n in notifs:
+        if not n.get("read"):
+            n["read"] = True
+            changed = True
+    if changed:
+        _save_notifications(notifs)
 
 
 @app.get("/notifications")
 async def notifications_page(request: Request, user=Depends(require_session)):
+    _mark_all_read()
     notifs = _load_notifications()
     return templates.TemplateResponse(request=request, name="notifications.html", context={
-        "user": user, "notifications": notifs, "notification_count": len(notifs),
+        "user": user, "notifications": notifs,
     })
-
-
-@app.post("/notifications/dismiss")
-async def notifications_dismiss(request: Request, user=Depends(require_session)):
-    form = await request.form()
-    idx = int(str(form.get("index", "-1")))
-    notifs = _load_notifications()
-    if 0 <= idx < len(notifs):
-        notifs.pop(idx)
-        _save_notifications(notifs)
-    return redirect_to("/notifications")
 
 
 @app.post("/notifications/clear")
