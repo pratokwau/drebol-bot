@@ -1249,7 +1249,7 @@ async def demping_set_restart(request: Request, user=Depends(require_session)):
 
 @app.post("/demping/send-cardinal")
 async def demping_send_cardinal(request: Request, user=Depends(require_session)):
-    from handlers.demping import load_demping, load_demping_settings, save_demping, DEMPING_FILE
+    from handlers.demping import load_demping, load_demping_settings, DEMPING_FILE
     from handlers.minprice import get_item_offer_ids, calc_min_price
     import shutil, subprocess
 
@@ -1263,88 +1263,39 @@ async def demping_send_cardinal(request: Request, user=Depends(require_session))
     mp = _load_mp(ADMIN_ID)
     demping = load_demping()
 
-    if cashback in ("yes", "no"):
-        offer_to_price = {}
-        for game_name, game_data in mp.items():
-            if not isinstance(game_data, dict):
+    offer_to_site_price = {}
+    for game_name, game_data in mp.items():
+        if not isinstance(game_data, dict):
+            continue
+        meta = game_data.get("_meta", {})
+        sbp_rate = _money(meta.get("sbp_rate", 0))
+        for item_id, info in game_data.items():
+            if item_id == "_meta" or not isinstance(info, dict):
                 continue
-            for item_id, info in game_data.items():
-                if item_id == "_meta" or not isinstance(info, dict):
-                    continue
-                ids = get_item_offer_ids(info)
-                if not ids:
-                    continue
-                cb = info.get("cashback", "none")
-                cost = _money(info.get("cost", 0))
-                if cost <= 0:
-                    continue
-                min_price = calc_min_price(cost)
-                for oid in ids:
-                    if cb == cashback:
-                        offer_to_price[oid] = min_price
-                    elif cb == "none" and oid not in offer_to_price:
-                        offer_to_price[oid] = min_price
-
-        for oid_str, lot in demping.items():
-            oid = int(oid_str)
-            if oid in offer_to_price:
-                lot["min_price"] = offer_to_price[oid]
-
-        name_variants = {}
-        for game_name, game_data in mp.items():
-            if not isinstance(game_data, dict):
+            ids = get_item_offer_ids(info)
+            if not ids:
                 continue
-            for item_id, info in game_data.items():
-                if item_id == "_meta" or not isinstance(info, dict):
-                    continue
-                ids = get_item_offer_ids(info)
-                if not ids:
-                    continue
-                name = info.get("name", "")
-                cb = info.get("cashback", "none")
-                if name not in name_variants:
-                    name_variants[name] = {}
-                name_variants[name][cb] = ids
-
-        allowed_offer_ids = set()
-        for name, variants in name_variants.items():
-            if cashback in variants:
-                allowed_offer_ids.update(variants[cashback])
-            elif "none" in variants:
-                allowed_offer_ids.update(variants["none"])
-            else:
-                for cb_val, ids in variants.items():
-                    allowed_offer_ids.update(ids)
-                    break
-
-        filtered = {oid: lot for oid, lot in demping.items() if int(oid) in allowed_offer_ids}
-    else:
-        offer_to_price = {}
-        for game_name, game_data in mp.items():
-            if not isinstance(game_data, dict):
+            cost = _money(info.get("cost", 0))
+            if cost <= 0:
                 continue
-            for item_id, info in game_data.items():
-                if item_id == "_meta" or not isinstance(info, dict):
-                    continue
-                ids = get_item_offer_ids(info)
-                if not ids:
-                    continue
-                cost = _money(info.get("cost", 0))
-                if cost <= 0:
-                    continue
-                min_price = calc_min_price(cost)
-                for oid in ids:
-                    if oid not in offer_to_price:
-                        offer_to_price[oid] = min_price
-        for oid_str, lot in demping.items():
-            oid = int(oid_str)
-            if oid in offer_to_price:
-                lot["min_price"] = offer_to_price[oid]
-        filtered = demping
+            min_price = calc_min_price(cost)
+            site_price = round(min_price * sbp_rate, 2) if sbp_rate > 0 else min_price
+            cb = info.get("cashback", "none")
+            for oid in ids:
+                if cashback == "all" or cb == cashback or cb == "none":
+                    if oid not in offer_to_site_price:
+                        offer_to_site_price[oid] = site_price
+                elif cb != cashback and oid not in offer_to_site_price:
+                    offer_to_site_price[oid] = site_price
+
+    for oid_str, lot in demping.items():
+        oid = int(oid_str)
+        if oid in offer_to_site_price:
+            lot["min_price"] = offer_to_site_price[oid]
 
     import tempfile
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8")
-    json.dump(filtered, tmp, ensure_ascii=False, indent=2)
+    json.dump(demping, tmp, ensure_ascii=False, indent=2)
     tmp.close()
     target_dir = os.path.dirname(target) or "."
     os.makedirs(target_dir, exist_ok=True)
