@@ -88,6 +88,14 @@ def _build_daily_report() -> str:
         except Exception:
             pass
 
+    mp = _load_mp(ADMIN_ID)
+    sbp_lines = []
+    for game_name in sorted(mp.keys()):
+        meta = mp.get(game_name, {}).get("_meta", {})
+        rate = meta.get("sbp_rate")
+        if rate:
+            sbp_lines.append(f"  {game_name}: {rate}")
+
     report = (
         f"📊 Ежедневный отчёт {now.strftime('%d.%m.%Y')}\n\n"
         f"💰 Прибыль: {profit_total:.2f} ₽\n"
@@ -98,6 +106,8 @@ def _build_daily_report() -> str:
         report += f"⚠️ Хвостов: {unfilled}\n"
     else:
         report += "✅ Все заказы заполнены\n"
+    if sbp_lines:
+        report += f"\n💱 Ставки СБП:\n" + "\n".join(sbp_lines) + "\n"
     return report
 
 
@@ -1214,14 +1224,51 @@ async def demping_set_restart(request: Request, user=Depends(require_session)):
 
 @app.post("/demping/send-cardinal")
 async def demping_send_cardinal(request: Request, user=Depends(require_session)):
-    from handlers.demping import load_demping_settings, DEMPING_FILE
+    from handlers.demping import load_demping, load_demping_settings, save_demping, DEMPING_FILE
+    from handlers.minprice import get_item_offer_ids
     import shutil, subprocess
+
+    form = await request.form()
+    cashback = str(form.get("cashback", "all"))
+
     settings = load_demping_settings()
     target = settings["target_path"]
     cmd = settings["restart_command"]
-    target_dir = os.path.dirname(target) or "."
-    os.makedirs(target_dir, exist_ok=True)
-    shutil.copy2(DEMPING_FILE, target)
+
+    if cashback in ("yes", "no"):
+        mp = _load_mp(ADMIN_ID)
+        demping = load_demping()
+        allowed_offer_ids = set()
+
+        for game_name, game_data in mp.items():
+            if not isinstance(game_data, dict):
+                continue
+            for item_id, info in game_data.items():
+                if item_id == "_meta" or not isinstance(info, dict):
+                    continue
+                cb = info.get("cashback", "none")
+                ids = get_item_offer_ids(info)
+                if not ids:
+                    continue
+                if cb == cashback:
+                    allowed_offer_ids.update(ids)
+                elif cb == "none":
+                    allowed_offer_ids.update(ids)
+
+        filtered = {oid: lot for oid, lot in demping.items() if int(oid) in allowed_offer_ids}
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(filtered, tmp, ensure_ascii=False, indent=2)
+        tmp.close()
+        target_dir = os.path.dirname(target) or "."
+        os.makedirs(target_dir, exist_ok=True)
+        shutil.copy2(tmp.name, target)
+        os.unlink(tmp.name)
+    else:
+        target_dir = os.path.dirname(target) or "."
+        os.makedirs(target_dir, exist_ok=True)
+        shutil.copy2(DEMPING_FILE, target)
+
     subprocess.run(cmd, shell=True, capture_output=True, timeout=30)
     return redirect_to("/demping")
 

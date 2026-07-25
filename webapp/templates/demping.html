@@ -57,14 +57,27 @@
 </section>
 
 <section class="panel">
-  <h2>Действия</h2>
+  <h2>Отправить в Cardinal</h2>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">Выберите вариант: только лоты с кэшбеком, только без, или все. Если у товара нет нужного варианта — отправится что есть.</p>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <form method="post" action="/demping/send-cardinal" style="display:inline;">
-      <button type="submit" style="background:var(--green);">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-        Отправить в Cardinal
-      </button>
+      <input type="hidden" name="cashback" value="yes">
+      <button type="submit" style="background:var(--green);">💳 С кэшбеком</button>
     </form>
+    <form method="post" action="/demping/send-cardinal" style="display:inline;">
+      <input type="hidden" name="cashback" value="no">
+      <button type="submit" style="background:var(--yellow);color:#000;">💵 Без кэшбека</button>
+    </form>
+    <form method="post" action="/demping/send-cardinal" style="display:inline;">
+      <input type="hidden" name="cashback" value="all">
+      <button type="submit" class="ghost">📦 Все лоты</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Обновление</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button onclick="updatePrices()" style="background:var(--accent);">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
       Обновить цены из минпрайса
