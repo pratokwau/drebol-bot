@@ -55,20 +55,72 @@ templates.env.globals["notification_count"] = _notif_count_safe
 _last_notif_check = None
 
 
+def _build_daily_report() -> str:
+    now = datetime.now()
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    profits = ProfitDatabase(ADMIN_ID).load_profits()
+    day_profits = []
+    for p in profits:
+        dt = _parse_date(p.get("date", ""))
+        if dt and start <= dt <= end:
+            day_profits.append(p)
+    sell_total = sum(_money(p.get("sell_price")) for p in day_profits)
+    profit_total = sum(_money(p.get("profit")) for p in day_profits)
+    count = len(day_profits)
+    fp_count = sum(1 for p in day_profits if "fp" in str(p.get("type", "")).lower() or "funpay" in str(p.get("type", "")).lower())
+
+    unfilled = 0
+    gk, ua = db.get_config()
+    if gk:
+        try:
+            account = make_funpay_account(gk, ua)
+            sales = fetch_funpay_sales(account, limit=150)
+            for sale in sales:
+                oid = str(getattr(sale, "id", ""))
+                if not oid:
+                    continue
+                st = str(getattr(sale, "status", "") or "")
+                if "refund" in st.lower():
+                    continue
+                if orders_db.get_prime_cost(oid) is None:
+                    unfilled += 1
+        except Exception:
+            pass
+
+    report = (
+        f"📊 Ежедневный отчёт {now.strftime('%d.%m.%Y')}\n\n"
+        f"💰 Прибыль: {profit_total:.2f} ₽\n"
+        f"📈 Продаж: {sell_total:.2f} ₽\n"
+        f"📦 Заказов: {count} (FunPay: {fp_count})\n"
+    )
+    if unfilled > 0:
+        report += f"⚠️ Хвостов: {unfilled}\n"
+    else:
+        report += "✅ Все заказы заполнены\n"
+    return report
+
+
 async def _background_notifications():
     global _last_notif_check
     while True:
         try:
-            await asyncio.sleep(300)
+            await asyncio.sleep(120)
             now = datetime.now()
             today_key = now.strftime("%Y-%m-%d")
+            current_time = now.strftime("%H:%M")
 
             from handlers.settings import get_user_settings
             settings = get_user_settings(ADMIN_ID)
             report_time = settings.get("admin_report_time", "23:59")
 
             existing = _load_notifications()
-            existing_today = [n for n in existing if n.get("time", "").startswith(today_key)]
+
+            if current_time == report_time:
+                already_report = any("ежедневный отчёт" in n.get("text", "").lower() and today_key in n.get("time", "") for n in existing)
+                if not already_report:
+                    report_text = _build_daily_report()
+                    add_notification(report_text, "success")
 
             if _last_notif_check == today_key:
                 continue
@@ -92,13 +144,9 @@ async def _background_notifications():
                     if unfilled > 0:
                         already = any("хвост" in n.get("text", "").lower() and today_key in n.get("time", "") for n in existing)
                         if not already:
-                            add_notification(f"⚠️ Незаполненных заказов: {unfilled}. Пора закрыть хвосты! (отчёт в {report_time})", "warning")
+                            add_notification(f"⚠️ Незаполненных заказов: {unfilled}. Пора закрыть хвосты!", "warning")
                 except Exception:
                     pass
-
-            already_report = any("админ-отчёт" in n.get("text", "").lower() and today_key in n.get("time", "") for n in existing)
-            if not already_report:
-                add_notification(f"📊 Ежедневный админ-отчёт будет в {report_time}", "info")
         except Exception:
             pass
 
