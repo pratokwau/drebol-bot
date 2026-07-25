@@ -132,6 +132,31 @@ async def _background_notifications():
                     report_text = _build_daily_report()
                     add_notification(report_text, "success")
 
+            sbp_file = "data/sbp_last_rates.json"
+            mp = _load_mp(ADMIN_ID)
+            current_rates = {}
+            for gname in mp.keys():
+                meta = mp.get(gname, {}).get("_meta", {})
+                rate = meta.get("sbp_rate")
+                if rate:
+                    current_rates[gname] = round(float(rate), 4)
+            last_rates = {}
+            if os.path.exists(sbp_file):
+                try:
+                    with open(sbp_file, encoding="utf-8") as f:
+                        last_rates = json.load(f)
+                except Exception:
+                    pass
+            changed = []
+            for gname, rate in current_rates.items():
+                old = last_rates.get(gname)
+                if old is None or abs(float(old) - rate) > 0.0001:
+                    changed.append(f"  {gname}: {old or '—'} → {rate}")
+            if changed:
+                add_notification(f"💱 Изменение СБП:\n" + "\n".join(changed), "warning")
+            with open(sbp_file, "w", encoding="utf-8") as f:
+                json.dump(current_rates, f, ensure_ascii=False)
+
             if _last_notif_check == today_key:
                 continue
             _last_notif_check = today_key
@@ -1238,22 +1263,33 @@ async def demping_send_cardinal(request: Request, user=Depends(require_session))
     if cashback in ("yes", "no"):
         mp = _load_mp(ADMIN_ID)
         demping = load_demping()
-        allowed_offer_ids = set()
 
+        name_variants = {}
         for game_name, game_data in mp.items():
             if not isinstance(game_data, dict):
                 continue
             for item_id, info in game_data.items():
                 if item_id == "_meta" or not isinstance(info, dict):
                     continue
-                cb = info.get("cashback", "none")
                 ids = get_item_offer_ids(info)
                 if not ids:
                     continue
-                if cb == cashback:
+                name = info.get("name", "")
+                cb = info.get("cashback", "none")
+                if name not in name_variants:
+                    name_variants[name] = {}
+                name_variants[name][cb] = ids
+
+        allowed_offer_ids = set()
+        for name, variants in name_variants.items():
+            if cashback in variants:
+                allowed_offer_ids.update(variants[cashback])
+            elif "none" in variants:
+                allowed_offer_ids.update(variants["none"])
+            else:
+                for cb, ids in variants.items():
                     allowed_offer_ids.update(ids)
-                elif cb == "none":
-                    allowed_offer_ids.update(ids)
+                    break
 
         filtered = {oid: lot for oid, lot in demping.items() if int(oid) in allowed_offer_ids}
         import tempfile
