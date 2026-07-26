@@ -1508,6 +1508,20 @@ async def demping_set_restart(request: Request, user=Depends(require_session)):
     return redirect_to("/demping")
 
 
+@app.get("/demping/download")
+async def demping_download(user=Depends(require_session)):
+    from handlers.demping import DEMPING_FILE
+    if not os.path.exists(DEMPING_FILE):
+        return JSONResponse({"ok": False, "error": "Файл не найден"}, status_code=404)
+    with open(DEMPING_FILE, "rb") as f:
+        data = f.read()
+    return Response(
+        content=data,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=price_optimizer_lots.json"},
+    )
+
+
 @app.post("/demping/send-cardinal")
 async def demping_send_cardinal(request: Request, user=Depends(require_session)):
     from handlers.demping import load_demping, load_demping_settings, DEMPING_FILE
