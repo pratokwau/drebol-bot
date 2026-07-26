@@ -48,6 +48,8 @@
   {% for group_name, variants in groups %}
   <div style="border-bottom:1px solid var(--border);padding:14px 0;">
     <h3 style="margin:0 0 8px;font-size:15px;color:var(--ink);">{{ loop.index + page * 20 }}. {{ group_name }}</h3>
+    {% set has_yes = variants|selectattr("cashback", "equalto", "yes")|list|length > 0 %}
+    {% set has_no = variants|selectattr("cashback", "equalto", "no")|list|length > 0 %}
     {% for v in variants %}
     <div style="margin:6px 0 6px 16px;padding:10px 14px;background:var(--bg-2);border-radius:8px;border:1px solid var(--border);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -91,6 +93,26 @@
       </details>
     </div>
     {% endfor %}
+    {% if not has_no %}
+    <div style="margin:6px 0 6px 16px;padding:8px 14px;margin-left:16px;">
+      <form method="post" action="/minprice/game/{{ game_hash }}/add-variant" style="display:flex;gap:8px;align-items:center;">
+        <input type="hidden" name="item_name" value="{{ group_name }}">
+        <input type="hidden" name="cashback" value="no">
+        <input name="cost" placeholder="Закуп без кэшбека" style="max-width:150px;font-size:12px;padding:5px 8px;" step="0.01" required>
+        <button type="submit" style="padding:5px 12px;font-size:12px;background:var(--yellow);color:#000;">+ 💵 Добавить без кэшбека</button>
+      </form>
+    </div>
+    {% endif %}
+    {% if not has_yes %}
+    <div style="margin:6px 0 6px 16px;padding:8px 14px;margin-left:16px;">
+      <form method="post" action="/minprice/game/{{ game_hash }}/add-variant" style="display:flex;gap:8px;align-items:center;">
+        <input type="hidden" name="item_name" value="{{ group_name }}">
+        <input type="hidden" name="cashback" value="yes">
+        <input name="cost" placeholder="Закуп с кэшбеком" style="max-width:150px;font-size:12px;padding:5px 8px;" step="0.01" required>
+        <button type="submit" style="padding:5px 12px;font-size:12px;background:var(--green);color:#000;">+ 💳 Добавить с кэшбеком</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 
