@@ -147,6 +147,7 @@ def _minutes_before(time_str: str, minutes: int) -> str:
 
 
 async def _background_notifications():
+    _last_sbp_check_date = None
     while True:
         try:
             await asyncio.sleep(120)
@@ -160,12 +161,75 @@ async def _background_notifications():
 
             existing = _load_notifications()
 
+            # --- Автопроверка ставок СБП с FunPay (1 раз в день) ---
+            if _last_sbp_check_date != today_key and current_time >= "10:00":
+                _last_sbp_check_date = today_key
+                try:
+                    from handlers.minprice import check_sbp_rates_for_admin
+                    print("[BG] Запуск автоматической проверки СБП ставок...")
+                    await check_sbp_rates_for_admin()
+
+                    # После проверки: если latest_checked_rate отличается от sbp_rate
+                    # → обновляем sbp_rate автоматически
+                    mp = _load_mp(ADMIN_ID)
+                    auto_updated = []
+                    for gname, gdata in mp.items():
+                        meta = gdata.get("_meta", {})
+                        old_rate = meta.get("sbp_rate")
+                        new_rate = meta.get("latest_checked_rate")
+                        if old_rate and new_rate and round(float(old_rate), 4) != round(float(new_rate), 4):
+                            mp[gname]["_meta"]["sbp_rate"] = new_rate
+                            auto_updated.append(f"  {gname}: {old_rate} → {new_rate}")
+
+                    # То же для сертификатов
+                    try:
+                        from handlers.certificates import load_certificates, save_certificates
+                        certs = load_certificates(ADMIN_ID)
+                        cert_updated = []
+                        for gname, gdata in certs.items():
+                            meta = gdata.get("_meta", {})
+                            old_rate = meta.get("rate")
+                            new_rate = meta.get("latest_checked_rate")
+                            if old_rate and new_rate and round(float(old_rate), 4) != round(float(new_rate), 4):
+                                certs[gname]["_meta"]["rate"] = new_rate
+                                cert_updated.append(f"  🎁 {gname}: {old_rate} → {new_rate}")
+                        if cert_updated:
+                            save_certificates(certs, ADMIN_ID)
+                            auto_updated.extend(cert_updated)
+                    except Exception:
+                        pass
+
+                    if auto_updated:
+                        _save_mp(ADMIN_ID, mp)
+                        add_notification(
+                            f"💱 Автообновление СБП:\n" + "\n".join(auto_updated),
+                            "warning"
+                        )
+                        # Обновляем цены демпинга
+                        try:
+                            from handlers.demping import load_demping, _do_update
+                            demping = load_demping()
+                            result = _do_update(mp, demping, ADMIN_ID, prefs_override={})
+                            updated = result.get("updated_lots", 0)
+                            if updated > 0:
+                                add_notification(
+                                    f"🔄 Цены демпинга обновлены ({updated} лотов). Выбери кэшбек и отправь файл в Cardinal!",
+                                    "warning"
+                                )
+                        except Exception:
+                            pass
+                    else:
+                        print("[BG] СБП ставки не изменились")
+                except Exception as e:
+                    print(f"[BG] Ошибка проверки СБП: {e}")
+
             if current_time == report_time:
                 already_report = any("ежедневный отчёт" in n.get("text", "").lower() and today_key in n.get("time", "") for n in existing)
                 if not already_report:
                     report_text = _build_daily_report()
                     add_notification(report_text, "success")
 
+            # Детекция ручных изменений sbp_rate (через веб-интерфейс)
             sbp_file = "data/sbp_last_rates.json"
             mp = _load_mp(ADMIN_ID)
             current_rates = {}
