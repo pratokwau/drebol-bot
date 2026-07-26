@@ -52,7 +52,6 @@ def _notif_count_safe() -> int:
 
 templates.env.globals["notification_count"] = _notif_count_safe
 
-_last_notif_check = None
 
 
 def _build_daily_report() -> str:
@@ -111,8 +110,43 @@ def _build_daily_report() -> str:
     return report
 
 
+async def _check_unfilled_orders(today_key: str):
+    """Проверяет хвосты и отправляет уведомление."""
+    gk, ua = db.get_config()
+    if not gk:
+        return
+    try:
+        account = make_funpay_account(gk, ua)
+        sales = fetch_funpay_sales(account, limit=150)
+        unfilled = 0
+        for sale in sales:
+            oid = str(getattr(sale, "id", ""))
+            if not oid:
+                continue
+            st = str(getattr(sale, "status", "") or "")
+            if "refund" in st.lower():
+                continue
+            if orders_db.get_prime_cost(oid) is None:
+                unfilled += 1
+        if unfilled > 0:
+            add_notification(f"⚠️ Незаполненных заказов: {unfilled}. Пора закрыть хвосты!", "warning")
+    except Exception:
+        pass
+
+
+def _minutes_before(time_str: str, minutes: int) -> str:
+    """Возвращает HH:MM на N минут раньше заданного времени."""
+    try:
+        h, m = map(int, time_str.split(":"))
+        total = h * 60 + m - minutes
+        if total < 0:
+            total += 24 * 60
+        return f"{total // 60:02d}:{total % 60:02d}"
+    except Exception:
+        return ""
+
+
 async def _background_notifications():
-    global _last_notif_check
     while True:
         try:
             await asyncio.sleep(120)
@@ -169,31 +203,17 @@ async def _background_notifications():
             with open(sbp_file, "w", encoding="utf-8") as f:
                 json.dump(current_rates, f, ensure_ascii=False)
 
-            if _last_notif_check == today_key:
-                continue
-            _last_notif_check = today_key
+            # Уведомления о хвостах: за 20 и за 5 минут до отчёта, всего 2 раза
+            tail_20 = _minutes_before(report_time, 20)
+            tail_5 = _minutes_before(report_time, 5)
+            existing_texts = [n.get("text", "") for n in existing if today_key in n.get("time", "")]
+            tail_sent = sum(1 for t in existing_texts if "хвост" in t.lower())
 
-            gk, ua = db.get_config()
-            if gk:
-                try:
-                    account = make_funpay_account(gk, ua)
-                    sales = fetch_funpay_sales(account, limit=150)
-                    unfilled = 0
-                    for sale in sales:
-                        oid = str(getattr(sale, "id", ""))
-                        if not oid:
-                            continue
-                        st = str(getattr(sale, "status", "") or "")
-                        if "refund" in st.lower():
-                            continue
-                        if orders_db.get_prime_cost(oid) is None:
-                            unfilled += 1
-                    if unfilled > 0:
-                        already = any("хвост" in n.get("text", "").lower() and today_key in n.get("time", "") for n in existing)
-                        if not already:
-                            add_notification(f"⚠️ Незаполненных заказов: {unfilled}. Пора закрыть хвосты!", "warning")
-                except Exception:
-                    pass
+            if current_time == tail_20 and tail_sent < 1:
+                await _check_unfilled_orders(today_key)
+            elif current_time == tail_5 and tail_sent < 2:
+                await _check_unfilled_orders(today_key)
+
         except Exception:
             pass
 
