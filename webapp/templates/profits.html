@@ -7,11 +7,18 @@
 </header>
 
 <section class="toolbar">
-  <div class="inline-form">
+  <div class="inline-form" style="flex-wrap:wrap;">
     <a href="/profits?period=day" class="btn {{ '' if period == 'day' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Сегодня</a>
     <a href="/profits?period=week" class="btn {{ '' if period == 'week' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Неделя</a>
     <a href="/profits?period=month" class="btn {{ '' if period == 'month' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Месяц</a>
     <a href="/profits?period=all" class="btn {{ '' if period == 'all' else 'ghost' }}" style="text-decoration:none;padding:8px 16px;">Всё время</a>
+    <form method="get" action="/profits" class="inline-form" style="margin:0;gap:8px;">
+      <input type="hidden" name="period" value="custom">
+      <input type="text" name="date_from" placeholder="дд.мм.гггг" value="{{ request.query_params.get('date_from', '') }}" style="width:120px;padding:8px 10px;font-size:13px;">
+      <span style="color:var(--muted);">—</span>
+      <input type="text" name="date_to" placeholder="дд.мм.гггг" value="{{ request.query_params.get('date_to', '') }}" style="width:120px;padding:8px 10px;font-size:13px;">
+      <button type="submit" style="padding:8px 14px;font-size:13px;">Показать</button>
+    </form>
   </div>
 </section>
 
@@ -83,12 +90,15 @@
 
   {% if total_pages > 1 %}
   <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
+    {% set date_params = '' %}
+    {% if request.query_params.get('date_from') %}{% set date_params = date_params + '&date_from=' + request.query_params.get('date_from', '') %}{% endif %}
+    {% if request.query_params.get('date_to') %}{% set date_params = date_params + '&date_to=' + request.query_params.get('date_to', '') %}{% endif %}
     {% if page > 0 %}
-      <a href="/profits?period={{ period }}&page={{ page - 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">← Назад</a>
+      <a href="/profits?period={{ period }}&page={{ page - 1 }}{{ date_params }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">← Назад</a>
     {% endif %}
     <span style="color:var(--muted);padding:6px 10px;font-size:14px;">Стр. {{ page + 1 }} / {{ total_pages }}</span>
     {% if page < total_pages - 1 %}
-      <a href="/profits?period={{ period }}&page={{ page + 1 }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">Вперёд →</a>
+      <a href="/profits?period={{ period }}&page={{ page + 1 }}{{ date_params }}" class="btn ghost" style="padding:6px 14px;text-decoration:none;">Вперёд →</a>
     {% endif %}
   </div>
   {% endif %}

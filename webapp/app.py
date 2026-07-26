@@ -762,34 +762,57 @@ async def calc_page(request: Request, user=Depends(require_session)):
 
 
 @app.get("/profits")
-async def profits_page(request: Request, period: str = "day", page: int = 0, user=Depends(require_session)):
-    print(f"[DEBUG] /profits called by {user.get('username')} period={period} page={page}")
+async def profits_page(request: Request, period: str = "day", page: int = 0, date_from: str = "", date_to: str = "", user=Depends(require_session)):
     try:
         profits = _load_admin_profits()
-        print(f"[DEBUG] loaded {len(profits)} profit records")
-    except Exception as e:
-        print(f"[DEBUG] _load_admin_profits error: {e}")
+    except Exception:
         profits = []
     now = datetime.now()
-    if period == "week":
+
+    # Пользовательский период
+    if date_from or date_to:
+        start = None
+        end = None
+        try:
+            if date_from:
+                start = datetime.strptime(date_from, "%d.%m.%Y")
+        except ValueError:
+            pass
+        try:
+            if date_to:
+                end = datetime.strptime(date_to, "%d.%m.%Y").replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            pass
+        label_from = date_from or "..."
+        label_to = date_to or "..."
+        period_label = f"{label_from} — {label_to}"
+        period = "custom"
+    elif period == "week":
         start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        end = None
         period_label = "Неделя"
     elif period == "month":
         start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = None
         period_label = "Месяц"
     elif period == "all":
         start = None
+        end = None
         period_label = "Всё время"
     else:
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = None
         period = "day"
         period_label = "Сегодня"
 
     filtered = []
     for p in profits:
         dt = _parse_date(p.get("date", ""))
-        if start is None or (dt and dt >= start):
-            filtered.append(p)
+        if start and dt and dt < start:
+            continue
+        if end and dt and dt > end:
+            continue
+        filtered.append(p)
     filtered.sort(key=lambda x: str(x.get("date", "")), reverse=True)
 
     per_page = 15
