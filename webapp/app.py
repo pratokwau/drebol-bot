@@ -1282,10 +1282,11 @@ async def demping_send_cardinal(request: Request, user=Depends(require_session))
             site_price = round(min_price * sbp_rate, 2) if sbp_rate > 0 else min_price
             cb = info.get("cashback", "none")
             for oid in ids:
-                if cashback == "all" or cb == cashback or cb == "none":
-                    if oid not in offer_to_site_price:
-                        offer_to_site_price[oid] = site_price
-                elif cb != cashback and oid not in offer_to_site_price:
+                if cashback == "all":
+                    offer_to_site_price[oid] = site_price
+                elif cb == cashback:
+                    offer_to_site_price[oid] = site_price
+                elif oid not in offer_to_site_price:
                     offer_to_site_price[oid] = site_price
 
     for oid_str, lot in demping.items():
