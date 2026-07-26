@@ -88,12 +88,16 @@ def _build_daily_report() -> str:
             pass
 
     mp = _load_mp(ADMIN_ID)
-    sbp_lines = []
+    sbp_changed = []
+    sbp_total = 0
     for game_name in sorted(mp.keys()):
         meta = mp.get(game_name, {}).get("_meta", {})
         rate = meta.get("sbp_rate")
+        latest = meta.get("latest_checked_rate")
         if rate:
-            sbp_lines.append(f"  {game_name}: {rate}")
+            sbp_total += 1
+            if latest and round(float(rate), 4) != round(float(latest), 4):
+                sbp_changed.append(f"  {game_name}: {rate} → {latest}")
 
     report = (
         f"📊 Ежедневный отчёт {now.strftime('%d.%m.%Y')}\n\n"
@@ -105,8 +109,10 @@ def _build_daily_report() -> str:
         report += f"⚠️ Хвостов: {unfilled}\n"
     else:
         report += "✅ Все заказы заполнены\n"
-    if sbp_lines:
-        report += f"\n💱 Ставки СБП:\n" + "\n".join(sbp_lines) + "\n"
+    if sbp_changed:
+        report += f"\n💱 СБП: изменено {len(sbp_changed)} из {sbp_total} ставок за день:\n" + "\n".join(sbp_changed) + "\n"
+    else:
+        report += f"\n💱 СБП: все {sbp_total} ставок без изменений\n"
     return report
 
 
