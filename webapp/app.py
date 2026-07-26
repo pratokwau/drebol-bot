@@ -1225,6 +1225,36 @@ async def minprice_add_item(request: Request, game_hash: str, user=Depends(requi
     return redirect_to(f"/minprice/game/{game_hash}")
 
 
+@app.post("/minprice/game/{game_hash}/add-variant")
+async def minprice_add_variant(request: Request, game_hash: str, user=Depends(require_session)):
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return redirect_to("/minprice")
+
+    form = await request.form()
+    item_name = str(form.get("item_name", "")).strip()
+    cashback = str(form.get("cashback", "")).strip()
+    cost = _money(str(form.get("cost", "0")).replace(",", "."))
+
+    if not item_name or cashback not in ("yes", "no") or cost <= 0:
+        return redirect_to(f"/minprice/game/{game_hash}")
+
+    uid = hashlib.md5(f"{item_name}_{cashback}_{secrets.token_hex(4)}".encode()).hexdigest()[:8]
+    mp[game_name][uid] = {
+        "name": item_name,
+        "cost": cost,
+        "min_price": _calc_min_price(cost),
+        "cashback": cashback,
+    }
+    _save_mp(ADMIN_ID, mp)
+    return redirect_to(f"/minprice/game/{game_hash}")
+
+
 @app.post("/minprice/game/{game_hash}/edit/{item_id}")
 async def minprice_edit_item(request: Request, game_hash: str, item_id: str, user=Depends(require_session)):
     mp = _load_mp(ADMIN_ID)
