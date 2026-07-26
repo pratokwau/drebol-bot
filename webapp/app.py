@@ -1197,10 +1197,16 @@ async def minprice_autolink(request: Request, game_hash: str, user=Depends(requi
 @app.get("/demping")
 async def demping_page(request: Request, user=Depends(require_session)):
     from handlers.demping import load_demping, load_demping_settings
+    from handlers.certificates import load_cert_demping
     demping = load_demping()
+    cert_demping = load_cert_demping()
     settings = load_demping_settings()
     return templates.TemplateResponse(request=request, name="demping.html", context={
-        "user": user, "demping": demping, "settings": settings, "lot_count": len(demping),
+        "user": user, "demping": demping, "settings": settings,
+        "mp_lot_count": len(demping),
+        "cert_lot_count": len(cert_demping),
+        "cert_target": settings["target_path"],
+        "cert_restart": settings["restart_command"],
     })
 
 
@@ -1321,8 +1327,10 @@ async def demping_update_prices(request: Request, user=Depends(require_session))
 @app.get("/certs")
 async def certs_page(request: Request, user=Depends(require_session)):
     from handlers.certificates import load_certificates, load_cert_demping
+    from handlers.demping import load_demping_settings
     data = load_certificates(ADMIN_ID)
     cert_demping = load_cert_demping()
+    settings = load_demping_settings()
     games = []
     for game_name in sorted(data.keys()):
         items = {k: v for k, v in data.get(game_name, {}).items() if k != "_meta" and isinstance(v, dict)}
@@ -1336,6 +1344,8 @@ async def certs_page(request: Request, user=Depends(require_session)):
         })
     return templates.TemplateResponse(request=request, name="certs.html", context={
         "user": user, "games": games, "demping_count": len(cert_demping),
+        "cert_target": settings["target_path"],
+        "cert_restart": settings["restart_command"],
     })
 
 
