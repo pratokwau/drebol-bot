@@ -154,6 +154,18 @@ async def _background_notifications():
                     changed.append(f"  {gname}: {old or '—'} → {rate}")
             if changed:
                 add_notification(f"💱 Изменение СБП:\n" + "\n".join(changed), "warning")
+                try:
+                    from handlers.demping import load_demping, _do_update
+                    demping = load_demping()
+                    result = _do_update(mp, demping, ADMIN_ID, prefs_override={})
+                    updated = result.get("updated_lots", 0)
+                    if updated > 0:
+                        add_notification(
+                            f"🔄 Цены демпинга обновлены ({updated} лотов). Не забудь отправить файл в Cardinal!",
+                            "warning"
+                        )
+                except Exception:
+                    pass
             with open(sbp_file, "w", encoding="utf-8") as f:
                 json.dump(current_rates, f, ensure_ascii=False)
 
@@ -1219,9 +1231,43 @@ async def demping_upload(request: Request, user=Depends(require_session)):
         try:
             content = await file.read()
             import json as _json
-            data = _json.loads(content.decode("utf-8"))
+            text = content.decode("utf-8")
+
+            # Парсим с учётом дубликатов: дубли получают суффикс _2, _3 …
+            def _merge_pairs(pairs):
+                result = {}
+                seen = {}
+                for key, value in pairs:
+                    if key in seen:
+                        seen[key] += 1
+                        result[f"{key}_{seen[key]}"] = value
+                    else:
+                        seen[key] = 1
+                        result[key] = value
+                return result
+
+            dupes_info = {}
+            def _count_pairs(pairs):
+                for key, _ in pairs:
+                    dupes_info[key] = dupes_info.get(key, 0) + 1
+                return dict(pairs)  # стандартное поведение
+
+            # Сначала считаем дубликаты
+            _json.loads(text, object_pairs_hook=_count_pairs)
+            dup_count = sum(c - 1 for c in dupes_info.values() if c > 1)
+
+            # Теперь парсим с сохранением всех дубликатов
+            data = _json.loads(text, object_pairs_hook=_merge_pairs)
             if isinstance(data, dict):
                 save_demping(data)
+                msg = f"📥 Демпинг загружен: {len(data)} лотов"
+                if dup_count:
+                    msg += f" ({dup_count} дубликатов offer_id сохранены с суффиксом _2, _3…)"
+                    from handlers.demping import add_notification as _add_notif
+                    _add_notif(msg, "warning")
+                else:
+                    from handlers.demping import add_notification as _add_notif
+                    _add_notif(msg, "success")
         except Exception:
             pass
     return redirect_to("/demping")
