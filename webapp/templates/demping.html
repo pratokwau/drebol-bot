@@ -1,43 +1,92 @@
 {% extends "base.html" %}
-{% block title %}Демпинг · Drebolbot{% endblock %}
+{% block title %}Демпинг · Drebol-bot{% endblock %}
 {% block content %}
 <header class="page-head">
   <h1>Демпинг Cardinal</h1>
-  <p>Управление файлом price_optimizer_lots.json.</p>
+  <p>Управление файлами price_optimizer_lots.json для минпрайса и сертификатов.</p>
 </header>
 
-<section class="grid">
-  <article class="card">
-    <div class="card-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-    </div>
-    <span class="label">Лотов в файле</span>
-    <strong>{{ lot_count }}</strong>
-  </article>
-  <article class="card">
-    <div class="card-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-    </div>
-    <span class="label">Путь</span>
-    <strong style="font-size:13px;word-break:break-all;">{{ settings.target_path }}</strong>
-  </article>
-  <article class="card">
-    <div class="card-icon yellow">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-    </div>
-    <span class="label">Команда</span>
-    <strong style="font-size:13px;word-break:break-all;">{{ settings.restart_command }}</strong>
-  </article>
-</section>
-
+<!-- MINPRICE DEMPING -->
 <section class="panel">
-  <h2>Загрузить файл</h2>
-  <form method="post" action="/demping/upload" enctype="multipart/form-data" class="inline-form">
+  <h2>🎮 Демпинг минпрайса</h2>
+  <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+    <article class="card" style="padding:14px;">
+      <span class="label">Лотов</span>
+      <strong>{{ mp_lot_count }}</strong>
+    </article>
+    <article class="card" style="padding:14px;">
+      <span class="label">Путь</span>
+      <strong style="font-size:12px;word-break:break-all;">{{ settings.target_path }}</strong>
+    </article>
+    <article class="card" style="padding:14px;">
+      <span class="label">Команда</span>
+      <strong style="font-size:12px;word-break:break-all;">{{ settings.restart_command }}</strong>
+    </article>
+  </div>
+
+  <h3 style="font-size:14px;color:var(--muted);margin-bottom:8px;">Загрузить файл</h3>
+  <form method="post" action="/demping/upload" enctype="multipart/form-data" class="inline-form" style="margin-bottom:16px;">
     <input type="file" name="file" accept=".json" required>
     <button type="submit">Загрузить</button>
   </form>
+
+  <h3 style="font-size:14px;color:var(--muted);margin-bottom:8px;">Отправить в Cardinal</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+    <form method="post" action="/demping/send-cardinal" style="display:inline;">
+      <input type="hidden" name="cashback" value="yes">
+      <button type="submit" style="background:var(--green);">💳 С кэшбеком</button>
+    </form>
+    <form method="post" action="/demping/send-cardinal" style="display:inline;">
+      <input type="hidden" name="cashback" value="no">
+      <button type="submit" style="background:var(--yellow);color:#000;">💵 Без кэшбека</button>
+    </form>
+    <form method="post" action="/demping/send-cardinal" style="display:inline;">
+      <input type="hidden" name="cashback" value="all">
+      <button type="submit" class="ghost">📦 Все лоты</button>
+    </form>
+  </div>
+
+  <button onclick="updatePrices('mp')" style="background:var(--accent);">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+    Обновить цены из минпрайса
+  </button>
+  <div id="result-mp" style="margin-top:8px;font-size:14px;"></div>
 </section>
 
+<!-- CERTIFICATES DEMPING -->
+<section class="panel">
+  <h2>🎁 Демпинг сертификатов</h2>
+  <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+    <article class="card" style="padding:14px;">
+      <span class="label">Лотов</span>
+      <strong>{{ cert_lot_count }}</strong>
+    </article>
+    <article class="card" style="padding:14px;">
+      <span class="label">Путь</span>
+      <strong style="font-size:12px;word-break:break-all;">{{ cert_target }}</strong>
+    </article>
+    <article class="card" style="padding:14px;">
+      <span class="label">Команда</span>
+      <strong style="font-size:12px;word-break:break-all;">{{ cert_restart }}</strong>
+    </article>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+    <form method="post" action="/demping/certs-send-cardinal" style="display:inline;">
+      <button type="submit" style="background:var(--green);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        Отправить в Cardinal
+      </button>
+    </form>
+    <button onclick="updatePrices('cert')" style="background:var(--accent);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      Обновить из сертификатов
+    </button>
+  </div>
+  <div id="result-cert" style="margin-top:8px;font-size:14px;"></div>
+</section>
+
+<!-- CARDINAL SETTINGS -->
 <section class="panel">
   <h2>Настройки Cardinal</h2>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -56,43 +105,20 @@
   </div>
 </section>
 
-<section class="panel">
-  <h2>Отправить в Cardinal</h2>
-  <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">Выберите вариант: только лоты с кэшбеком, только без, или все. Если у товара нет нужного варианта — отправится что есть.</p>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <form method="post" action="/demping/send-cardinal" style="display:inline;">
-      <input type="hidden" name="cashback" value="yes">
-      <button type="submit" style="background:var(--green);">💳 С кэшбеком</button>
-    </form>
-    <form method="post" action="/demping/send-cardinal" style="display:inline;">
-      <input type="hidden" name="cashback" value="no">
-      <button type="submit" style="background:var(--yellow);color:#000;">💵 Без кэшбека</button>
-    </form>
-    <form method="post" action="/demping/send-cardinal" style="display:inline;">
-      <input type="hidden" name="cashback" value="all">
-      <button type="submit" class="ghost">📦 Все лоты</button>
-    </form>
-  </div>
-</section>
-
-<section class="panel">
-  <h2>Обновление</h2>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button onclick="updatePrices()" style="background:var(--accent);">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-      Обновить цены из минпрайса
-    </button>
-  </div>
-  <div id="update-result" style="margin-top:12px;font-size:14px;"></div>
-</section>
-
 <script>
-async function updatePrices() {
-  const res = await fetch('/demping/update-prices', { method: 'POST' });
-  const data = await res.json();
-  document.getElementById('update-result').innerHTML = data.ok
-    ? '<span style="color:var(--green);">Обновлено лотов: ' + data.updated + '</span>'
-    : '<span style="color:var(--red);">Ошибка</span>';
+async function updatePrices(type) {
+  const url = type === 'mp' ? '/demping/update-prices' : '/demping/certs-update-prices';
+  const resEl = document.getElementById('result-' + type);
+  resEl.innerHTML = '<span style="color:var(--muted);">Обновляю...</span>';
+  try {
+    const r = await fetch(url, { method: 'POST' });
+    const data = await r.json();
+    resEl.innerHTML = data.ok
+      ? '<span style="color:var(--green);">Обновлено лотов: ' + data.updated + '</span>'
+      : '<span style="color:var(--red);">Ошибка</span>';
+  } catch (e) {
+    resEl.innerHTML = '<span style="color:var(--red);">Ошибка: ' + e.message + '</span>';
+  }
 }
 </script>
 {% endblock %}
