@@ -14,6 +14,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       Добавить
     </button>
+    <a href="/minprice/import" class="btn ghost" style="text-decoration:none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      Импорт с FunPay
+    </a>
   </form>
 </section>
 
@@ -31,14 +35,21 @@
 {% for g in games %}
 <section class="panel" style="margin-bottom:12px;">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-    <div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <a href="/minprice/game/{{ g.hash }}" style="color:var(--accent);text-decoration:none;font-weight:700;font-size:16px;">{{ g.name }}</a>
-      <span style="margin-left:12px;color:var(--muted);font-size:13px;">
+      <span style="color:var(--muted);font-size:13px;">
         📦 {{ g.items_count }} товаров · 🔗 {{ g.linked_count }} с лотами
         {% if g.sbp_rate %} · СБП: <span style="color:var(--green);">{{ g.sbp_rate }}</span>{% endif %}
       </span>
     </div>
-    <div style="display:flex;gap:6px;">
+    <div style="display:flex;gap:6px;align-items:center;">
+      <form method="post" action="/minprice/rename-game" class="inline-form" style="margin:0;">
+        <input type="hidden" name="old_name" value="{{ g.name }}">
+        <input name="new_name" placeholder="Новое название" style="width:160px;padding:6px 10px;font-size:12px;" required>
+        <button type="submit" class="ghost" style="padding:6px 10px;font-size:12px;" title="Переименовать">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </button>
+      </form>
       <a href="/minprice/game/{{ g.hash }}" class="btn ghost" style="padding:6px 14px;font-size:13px;text-decoration:none;">Открыть</a>
       <form method="post" action="/minprice/delete-game" style="display:inline;" onsubmit="return confirm('Удалить игру {{ g.name }}?')">
         <input type="hidden" name="game_name" value="{{ g.name }}">

@@ -1054,6 +1054,72 @@ async def minprice_delete_game(request: Request, user=Depends(require_session)):
     return redirect_to("/minprice")
 
 
+@app.post("/minprice/rename-game")
+async def minprice_rename_game(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    old_name = str(form.get("old_name", "")).strip()
+    new_name = str(form.get("new_name", "")).strip()
+    if old_name and new_name and old_name != new_name:
+        mp = _load_mp(ADMIN_ID)
+        if old_name in mp:
+            mp[new_name] = mp.pop(old_name)
+            _save_mp(ADMIN_ID, mp)
+    return redirect_to("/minprice")
+
+
+@app.get("/minprice/import")
+async def minprice_import_page(request: Request, user=Depends(require_session)):
+    import re
+    from FunPayAPI import Account
+    gk, ua = db.get_config()
+    error = ""
+    profile_games = []
+    if gk:
+        try:
+            import requests as _req
+            acc = Account(gk)
+            if ua:
+                acc.user_agent = ua
+            acc.get()
+            session = _req.Session()
+            session.cookies.set("golden_key", gk, domain=".funpay.com")
+            session.headers["User-Agent"] = ua or "Mozilla/5.0"
+            r = session.get(f"https://funpay.com/users/{acc.id}/", timeout=10)
+            pairs = re.findall(r'<h3><a href="https://funpay\.com/lots/(\d+)/">([^<]+)</a></h3>', r.text)
+            seen = set()
+            for node_id, title in pairs:
+                t = title.strip()
+                if t.lower() not in seen:
+                    seen.add(t.lower())
+                    profile_games.append({"node_id": int(node_id), "name": t})
+        except Exception as e:
+            error = f"Ошибка: {e}"
+    else:
+        error = "Golden Key не настроен"
+
+    mp = _load_mp(ADMIN_ID)
+    existing = set(mp.keys())
+    return templates.TemplateResponse(request=request, name="minprice_import.html", context={
+        "user": user, "games": profile_games, "existing": existing, "error": error,
+    })
+
+
+@app.post("/minprice/import")
+async def minprice_import_do(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    selected = form.getlist("games")
+    mp = _load_mp(ADMIN_ID)
+    added = 0
+    for name in selected:
+        name = name.strip()
+        if name and name not in mp:
+            mp[name] = {}
+            added += 1
+    if added:
+        _save_mp(ADMIN_ID, mp)
+    return redirect_to("/minprice")
+
+
 @app.get("/minprice/game/{game_hash}")
 async def minprice_game_page(request: Request, game_hash: str, page: int = 0, user=Depends(require_session)):
     mp = _load_mp(ADMIN_ID)
