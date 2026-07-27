@@ -1629,26 +1629,64 @@ async def demping_update_prices(request: Request, user=Depends(require_session))
 @app.get("/certs")
 async def certs_page(request: Request, user=Depends(require_session)):
     from handlers.certificates import load_certificates, load_cert_demping
-    from handlers.demping import load_demping_settings
     data = load_certificates(ADMIN_ID)
     cert_demping = load_cert_demping()
-    settings = load_demping_settings()
     games = []
     for game_name in sorted(data.keys()):
         items = {k: v for k, v in data.get(game_name, {}).items() if k != "_meta" and isinstance(v, dict)}
         meta = data.get(game_name, {}).get("_meta", {})
         rate = meta.get("rate", 0)
+        linked = sum(1 for v in items.values() if v.get("offer_id"))
         games.append({
             "name": game_name,
             "hash": hashlib.md5(game_name.encode()).hexdigest()[:8],
             "items_count": len(items),
+            "linked_count": linked,
             "rate": rate,
         })
     return templates.TemplateResponse(request=request, name="certs.html", context={
         "user": user, "games": games, "demping_count": len(cert_demping),
-        "cert_target": settings["target_path"],
-        "cert_restart": settings["restart_command"],
     })
+
+
+@app.post("/certs/add-game")
+async def certs_add_game(request: Request, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates
+    form = await request.form()
+    game_name = str(form.get("game_name", "")).strip()
+    if game_name:
+        data = load_certificates(ADMIN_ID)
+        if game_name not in data:
+            data[game_name] = {}
+            save_certificates(data, ADMIN_ID)
+    return redirect_to("/certs")
+
+
+@app.post("/certs/delete-game")
+async def certs_delete_game(request: Request, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates
+    form = await request.form()
+    game_name = str(form.get("game_name", "")).strip()
+    if game_name:
+        data = load_certificates(ADMIN_ID)
+        if game_name in data:
+            del data[game_name]
+            save_certificates(data, ADMIN_ID)
+    return redirect_to("/certs")
+
+
+@app.post("/certs/rename-game")
+async def certs_rename_game(request: Request, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates
+    form = await request.form()
+    old_name = str(form.get("old_name", "")).strip()
+    new_name = str(form.get("new_name", "")).strip()
+    if old_name and new_name and old_name != new_name:
+        data = load_certificates(ADMIN_ID)
+        if old_name in data:
+            data[new_name] = data.pop(old_name)
+            save_certificates(data, ADMIN_ID)
+    return redirect_to("/certs")
 
 
 @app.get("/certs/game/{game_hash}")
@@ -1768,6 +1806,35 @@ async def certs_delete_item(request: Request, game_hash: str, user=Depends(requi
     if game_name and item_id in data.get(game_name, {}):
         del data[game_name][item_id]
         save_certificates(data, ADMIN_ID)
+    return redirect_to(f"/certs/game/{game_hash}")
+
+
+@app.post("/certs/game/{game_hash}/edit/{item_id}")
+async def certs_edit_item(request: Request, game_hash: str, item_id: str, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates, calc_min_price as cert_calc
+    form = await request.form()
+    data = load_certificates(ADMIN_ID)
+    game_name = None
+    for name in data.keys():
+        if hashlib.md5(name.encode()).hexdigest()[:8] == game_hash:
+            game_name = name
+            break
+    if not game_name or item_id not in data.get(game_name, {}):
+        return redirect_to(f"/certs/game/{game_hash}")
+
+    new_name = str(form.get("item_name", "")).strip()
+    new_cost = _money(str(form.get("cost", "0")).replace(",", "."))
+    new_offer = str(form.get("offer_id", "")).strip()
+
+    if new_name:
+        data[game_name][item_id]["name"] = new_name
+    if new_cost > 0:
+        data[game_name][item_id]["cost"] = new_cost
+        data[game_name][item_id]["min_price"] = cert_calc(new_cost)
+    if new_offer:
+        data[game_name][item_id]["offer_id"] = int(new_offer) if new_offer.isdigit() else None
+
+    save_certificates(data, ADMIN_ID)
     return redirect_to(f"/certs/game/{game_hash}")
 
 

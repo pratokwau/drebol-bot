@@ -6,7 +6,18 @@
   <p>Управление подарочными сертификатами и отправка в Cardinal.</p>
 </header>
 
-<section class="grid">
+<section class="panel" style="margin-bottom:20px;">
+  <h2>Добавить игру</h2>
+  <form method="post" action="/certs/add-game" class="inline-form">
+    <input name="game_name" placeholder="Название игры" style="min-width:300px;" required>
+    <button type="submit">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      Добавить
+    </button>
+  </form>
+</section>
+
+<section class="grid" style="margin-bottom:20px;">
   <article class="card">
     <div class="card-icon green">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
@@ -24,27 +35,38 @@
 </section>
 
 {% if games %}
-<section class="panel">
-  <h2>Игры</h2>
-  <table>
-    <thead>
-      <tr><th>Игра</th><th>Товаров</th><th>Коэффициент</th><th></th></tr>
-    </thead>
-    <tbody>
-    {% for g in games %}
-      <tr>
-        <td><a href="/certs/game/{{ g.hash }}" style="color:var(--accent);text-decoration:none;font-weight:600;">{{ g.name }}</a></td>
-        <td>{{ g.items_count }}</td>
-        <td>{% if g.rate > 0 %}<span style="color:var(--green);">{{ g.rate }}</span>{% else %}<span style="color:var(--muted);">—</span>{% endif %}</td>
-        <td><a href="/certs/game/{{ g.hash }}" class="btn ghost" style="padding:4px 10px;font-size:12px;text-decoration:none;">Открыть</a></td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+{% for g in games %}
+<section class="panel" style="margin-bottom:12px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="/certs/game/{{ g.hash }}" style="color:var(--accent);text-decoration:none;font-weight:700;font-size:16px;">{{ g.name }}</a>
+      <span style="color:var(--muted);font-size:13px;">
+        📦 {{ g.items_count }} товаров · 🔗 {{ g.linked_count }} с лотами
+        {% if g.rate > 0 %} · Коэф: <span style="color:var(--green);">{{ g.rate }}</span>{% endif %}
+      </span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <form method="post" action="/certs/rename-game" class="inline-form" style="margin:0;">
+        <input type="hidden" name="old_name" value="{{ g.name }}">
+        <input name="new_name" placeholder="Новое название" style="width:160px;padding:6px 10px;font-size:12px;" required>
+        <button type="submit" class="ghost" style="padding:6px 10px;font-size:12px;" title="Переименовать">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </button>
+      </form>
+      <a href="/certs/game/{{ g.hash }}" class="btn ghost" style="padding:6px 14px;font-size:13px;text-decoration:none;">Открыть</a>
+      <form method="post" action="/certs/delete-game" style="display:inline;" onsubmit="return confirm('Удалить игру {{ g.name }}?')">
+        <input type="hidden" name="game_name" value="{{ g.name }}">
+        <button class="danger" type="submit" style="padding:6px 10px;font-size:12px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </form>
+    </div>
+  </div>
 </section>
+{% endfor %}
 {% else %}
 <section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
-  <p>Сертификатов пока нет. Добавьте через бота.</p>
+  <p>Сертификатов пока нет. Добавьте первую игру!</p>
 </section>
 {% endif %}
 {% endblock %}
