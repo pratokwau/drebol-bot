@@ -44,6 +44,10 @@
       <input type="hidden" name="cashback" value="no">
       <button type="submit" style="background:var(--yellow);color:#000;">💵 Без кэшбека</button>
     </form>
+    <form method="post" action="/demping/send-cardinal" style="display:inline;">
+      <input type="hidden" name="cashback" value="all">
+      <button type="submit" class="ghost">📦 Все лоты</button>
+    </form>
   </div>
 
   <button onclick="updatePrices('mp')" style="background:var(--accent);">

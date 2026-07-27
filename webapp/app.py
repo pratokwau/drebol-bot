@@ -1493,41 +1493,23 @@ async def demping_upload(request: Request, user=Depends(require_session)):
             import json as _json
             text = content.decode("utf-8")
 
-            # Парсим с учётом дубликатов: дубли получают суффикс _2, _3 …
-            def _merge_pairs(pairs):
-                result = {}
-                seen = {}
-                for key, value in pairs:
-                    if key in seen:
-                        seen[key] += 1
-                        result[f"{key}_{seen[key]}"] = value
-                    else:
-                        seen[key] = 1
-                        result[key] = value
-                return result
+            # Считаем дубликаты offer_id для уведомления
+            import re as _re
+            from collections import Counter
+            all_keys = _re.findall(r'"(\d+)"\s*:', text)
+            dupes = {k: c for k, c in Counter(all_keys).items() if c > 1}
+            dup_count = sum(c - 1 for c in dupes.values())
 
-            dupes_info = {}
-            def _count_pairs(pairs):
-                for key, _ in pairs:
-                    dupes_info[key] = dupes_info.get(key, 0) + 1
-                return dict(pairs)  # стандартное поведение
-
-            # Сначала считаем дубликаты
-            _json.loads(text, object_pairs_hook=_count_pairs)
-            dup_count = sum(c - 1 for c in dupes_info.values() if c > 1)
-
-            # Теперь парсим с сохранением всех дубликатов
-            data = _json.loads(text, object_pairs_hook=_merge_pairs)
+            # Стандартный парсинг — при дубликатах offer_id последнее значение побеждает
+            data = _json.loads(text)
             if isinstance(data, dict):
                 save_demping(data)
                 msg = f"📥 Демпинг загружен: {len(data)} лотов"
                 if dup_count:
-                    msg += f" ({dup_count} дубликатов offer_id сохранены с суффиксом _2, _3…)"
-                    from handlers.demping import add_notification as _add_notif
-                    _add_notif(msg, "warning")
-                else:
-                    from handlers.demping import add_notification as _add_notif
-                    _add_notif(msg, "success")
+                    dup_ids = ", ".join(sorted(dupes.keys())[:10])
+                    msg += f" (⚠️ {dup_count} дубликатов offer_id в файле: {dup_ids}{'...' if len(dupes) > 10 else ''})"
+                from handlers.demping import add_notification as _add_notif
+                _add_notif(msg, "warning" if dup_count else "success")
         except Exception:
             pass
     return redirect_to("/demping")
