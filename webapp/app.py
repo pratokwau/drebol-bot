@@ -1689,7 +1689,59 @@ async def certs_rename_game(request: Request, user=Depends(require_session)):
     return redirect_to("/certs")
 
 
-@app.get("/certs/game/{game_hash}")
+@app.get("/certs/import")
+async def certs_import_page(request: Request, user=Depends(require_session)):
+    from handlers.certificates import load_certificates
+    import re
+    gk, ua = db.get_config()
+    error = ""
+    profile_games = []
+    if gk:
+        try:
+            from FunPayAPI import Account
+            import requests as _req
+            acc = Account(gk)
+            if ua:
+                acc.user_agent = ua
+            acc.get()
+            session = _req.Session()
+            session.cookies.set("golden_key", gk, domain=".funpay.com")
+            session.headers["User-Agent"] = ua or "Mozilla/5.0"
+            r = session.get(f"https://funpay.com/users/{acc.id}/", timeout=10)
+            pairs = re.findall(r'<h3><a href="https://funpay\.com/lots/(\d+)/">([^<]+)</a></h3>', r.text)
+            seen = set()
+            for node_id, title in pairs:
+                t = title.strip()
+                if t.lower() not in seen:
+                    seen.add(t.lower())
+                    profile_games.append({"node_id": int(node_id), "name": t})
+        except Exception as e:
+            error = f"Ошибка: {e}"
+    else:
+        error = "Golden Key не настроен"
+
+    data = load_certificates(ADMIN_ID)
+    existing = set(data.keys())
+    return templates.TemplateResponse(request=request, name="certs_import.html", context={
+        "user": user, "games": profile_games, "existing": existing, "error": error,
+    })
+
+
+@app.post("/certs/import")
+async def certs_import_do(request: Request, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates
+    form = await request.form()
+    selected = form.getlist("games")
+    data = load_certificates(ADMIN_ID)
+    added = 0
+    for name in selected:
+        name = name.strip()
+        if name and name not in data:
+            data[name] = {}
+            added += 1
+    if added:
+        save_certificates(data, ADMIN_ID)
+    return redirect_to("/certs")
 async def certs_game_page(request: Request, game_hash: str, user=Depends(require_session)):
     from handlers.certificates import load_certificates
     data = load_certificates(ADMIN_ID)
@@ -1836,6 +1888,38 @@ async def certs_edit_item(request: Request, game_hash: str, item_id: str, user=D
 
     save_certificates(data, ADMIN_ID)
     return redirect_to(f"/certs/game/{game_hash}")
+
+
+@app.post("/demping/certs-upload")
+async def demping_certs_upload(request: Request, user=Depends(require_session)):
+    from handlers.certificates import CERT_DEMPING_FILE, save_cert_demping
+    form = await request.form()
+    file = form.get("file")
+    if file and hasattr(file, "read"):
+        try:
+            content = await file.read()
+            data = json.loads(content.decode("utf-8"))
+            if isinstance(data, dict):
+                save_cert_demping(data)
+                from handlers.demping import add_notification as _add_notif
+                _add_notif(f"📥 Демпинг сертификатов загружен: {len(data)} лотов", "success")
+        except Exception:
+            pass
+    return redirect_to("/demping")
+
+
+@app.get("/demping/certs-download")
+async def demping_certs_download(user=Depends(require_session)):
+    from handlers.certificates import CERT_DEMPING_FILE
+    if not os.path.exists(CERT_DEMPING_FILE):
+        return JSONResponse({"ok": False, "error": "Файл не найден"}, status_code=404)
+    with open(CERT_DEMPING_FILE, "rb") as f:
+        data = f.read()
+    return Response(
+        content=data,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=certificates_demping.json"},
+    )
 
 
 @app.post("/certs/send-cardinal")

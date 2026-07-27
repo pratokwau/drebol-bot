@@ -41,9 +41,11 @@
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span style="font-weight:600;color:var(--ink);font-size:15px;">{{ info.name or item_id }}</span>
         <span style="color:var(--muted);font-size:13px;">Закуп: <b style="color:var(--ink);">{{ "%.2f"|format(info.cost or 0) }} ₽</b></span>
-        <span style="color:var(--muted);font-size:13px;">Мин: <b style="color:var(--accent);">{{ "%.2f"|format(info.min_price or 0) }} ₽</b></span>
-        {% if rate > 0 %}
-        <span style="color:var(--muted);font-size:13px;">Сайт: <b style="color:var(--green);">{{ "%.2f"|format((info.min_price or 0) * rate) }} ₽</b></span>
+        {% if info.min_price and info.min_price > 0 %}
+        <span style="color:var(--muted);font-size:13px;">Мин: <b style="color:var(--accent);">{{ "%.2f"|format(info.min_price) }} ₽</b></span>
+        {% endif %}
+        {% if rate > 0 and info.min_price and info.min_price > 0 %}
+        <span style="color:var(--muted);font-size:13px;">Сайт: <b style="color:var(--green);">{{ "%.2f"|format(info.min_price * rate) }} ₽</b></span>
         {% endif %}
         {% if info.offer_id %}
         <a href="https://funpay.com/lots/offer?id={{ info.offer_id }}" target="_blank" style="color:var(--accent);font-size:12px;">🔗 #{{ info.offer_id }}</a>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Импорт игр · Сертификаты{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Импорт игр с FunPay</h1>
+  <p>Выберите какие игры добавить в сертификаты.</p>
+</header>
+
+{% if error %}
+<section class="alert">{{ error }}</section>
+{% endif %}
+
+{% if games %}
+<section class="panel">
+  <form method="post" action="/certs/import">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="color:var(--muted);font-size:14px;">Найдено {{ games|length }} игр в профиле</span>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="ghost" onclick="document.querySelectorAll('.import-cb').forEach(c=>c.checked=true)" style="font-size:13px;padding:6px 14px;">Выбрать все</button>
+        <button type="button" class="ghost" onclick="document.querySelectorAll('.import-cb').forEach(c=>c.checked=false)" style="font-size:13px;padding:6px 14px;">Снять все</button>
+      </div>
+    </div>
+    <div style="display:grid;gap:8px;max-height:60vh;overflow-y:auto;">
+      {% for g in games %}
+      <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all var(--transition);">
+        {% if g.name in existing %}
+        <input type="checkbox" name="games" value="{{ g.name }}" disabled style="width:auto;accent-color:var(--green);">
+        <span style="color:var(--ink-2);">{{ g.name }}</span>
+        <span class="pill ok" style="margin-left:auto;">уже есть</span>
+        {% else %}
+        <input type="checkbox" name="games" value="{{ g.name }}" class="import-cb" style="width:auto;accent-color:var(--accent);">
+        <span style="color:var(--ink);">{{ g.name }}</span>
+        <span style="margin-left:auto;color:var(--muted);font-size:12px;">#{{ g.node_id }}</span>
+        {% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    <div style="margin-top:20px;display:flex;gap:10px;">
+      <button type="submit">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Добавить выбранные
+      </button>
+      <a href="/certs" class="btn ghost" style="text-decoration:none;">Назад</a>
+    </div>
+  </form>
+</section>
+{% else %}
+<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+  <p>{% if error %}{{ error }}{% else %}Игры не найдены в профиле FunPay.{% endif %}</p>
+  <a href="/certs" class="btn ghost" style="text-decoration:none;margin-top:16px;">Назад</a>
+</section>
+{% endif %}
+{% endblock %}
