@@ -44,10 +44,6 @@
       <input type="hidden" name="cashback" value="no">
       <button type="submit" style="background:var(--yellow);color:#000;">💵 Без кэшбека</button>
     </form>
-    <form method="post" action="/demping/send-cardinal" style="display:inline;">
-      <input type="hidden" name="cashback" value="all">
-      <button type="submit" class="ghost">📦 Все лоты</button>
-    </form>
   </div>
 
   <button onclick="updatePrices('mp')" style="background:var(--accent);">
@@ -111,11 +107,11 @@
 
 <script>
 async function updatePrices(type) {
-  const url = type === 'mp' ? '/demping/update-prices' : '/demping/certs-update-prices';
+  const url = type === 'mp' ? '/demping/update-prices' : '/certs/update-demping';
   const resEl = document.getElementById('result-' + type);
   resEl.innerHTML = '<span style="color:var(--muted);">Обновляю...</span>';
   try {
-    const r = await fetch(url, { method: 'POST' });
+    const r = await fetch(url, { method: 'POST', headers: { 'x-requested-with': 'fetch' } });
     const data = await r.json();
     resEl.innerHTML = data.ok
       ? '<span style="color:var(--green);">Обновлено лотов: ' + data.updated + '</span>'
