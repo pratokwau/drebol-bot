@@ -7,13 +7,18 @@
 </header>
 
 <section class="toolbar">
-  <div class="inline-form">
+  <div class="inline-form" style="flex-wrap:wrap;">
     <a href="/certs" class="btn ghost" style="text-decoration:none;">← Назад</a>
     <form method="post" action="/certs/game/{{ game_hash }}/rate" style="display:flex;gap:8px;align-items:center;">
       <label style="margin:0;font-size:13px;color:var(--muted);">Коэффициент:</label>
       <input name="rate" value="{{ rate or '' }}" placeholder="1.0" style="max-width:120px;" step="0.01">
       <button type="submit" style="padding:6px 14px;font-size:13px;">Сохранить</button>
     </form>
+    <button onclick="updateRate()" id="btn-update-rate" style="padding:6px 14px;font-size:13px;background:var(--accent);">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      Обновить коэф
+    </button>
+    <span id="rate-result" style="font-size:13px;"></span>
   </div>
 </section>
 
@@ -63,4 +68,28 @@
   <p>Сертификатов пока нет.</p>
 </section>
 {% endif %}
+<script>
+async function updateRate() {
+  const btn = document.getElementById('btn-update-rate');
+  const res = document.getElementById('rate-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Проверяю...';
+  res.innerHTML = '<span style="color:var(--muted);">Получаю коэффициент с FunPay...</span>';
+  try {
+    const r = await fetch('/certs/game/{{ game_hash }}/update-rate', { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      res.innerHTML = '<span style="color:' + (data.changed ? 'var(--green)' : 'var(--muted)') + ';">' + data.text + '</span>';
+      if (data.changed) setTimeout(() => location.reload(), 1500);
+    } else {
+      res.innerHTML = '<span style="color:var(--red);">❌ ' + data.text + '</span>';
+    }
+  } catch (e) {
+    res.innerHTML = '<span style="color:var(--red);">❌ ' + e.message + '</span>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg> Обновить коэф';
+  }
+}
+</script>
 {% endblock %}

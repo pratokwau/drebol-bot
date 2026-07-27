@@ -21,37 +21,6 @@
     <span class="label">Лотов в демпинге</span>
     <strong>{{ demping_count }}</strong>
   </article>
-  <article class="card">
-    <div class="card-icon" style="background:var(--accent);color:#fff;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-    </div>
-    <span class="label">Путь</span>
-    <strong style="font-size:11px;word-break:break-all;">{{ cert_target }}</strong>
-  </article>
-  <article class="card">
-    <div class="card-icon" style="background:var(--yellow);color:#000;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-    </div>
-    <span class="label">Команда</span>
-    <strong style="font-size:11px;word-break:break-all;">{{ cert_restart }}</strong>
-  </article>
-</section>
-
-<section class="panel">
-  <h2>Действия</h2>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <form method="post" action="/certs/send-cardinal" style="display:inline;">
-      <button type="submit" style="background:var(--green);">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-        Отправить в Cardinal
-      </button>
-    </form>
-    <button onclick="updateDemping()" style="background:var(--accent);">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-      Обновить демпинг-файл
-    </button>
-  </div>
-  <div id="update-result" style="margin-top:12px;font-size:14px;"></div>
 </section>
 
 {% if games %}
@@ -78,14 +47,4 @@
   <p>Сертификатов пока нет. Добавьте через бота.</p>
 </section>
 {% endif %}
-
-<script>
-async function updateDemping() {
-  const res = await fetch('/certs/update-demping', { method: 'POST' });
-  const data = await res.json();
-  document.getElementById('update-result').innerHTML = data.ok
-    ? '<span style="color:var(--green);">Обновлено лотов: ' + data.updated + '</span>'
-    : '<span style="color:var(--red);">Ошибка</span>';
-}
-</script>
 {% endblock %}

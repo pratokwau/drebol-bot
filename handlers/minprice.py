@@ -447,7 +447,7 @@ async def check_sbp_rates_for_admin():
             else:
                 mp[game_name]["_meta"]["latest_checked_rate"] = new_rate
                 mp[game_name]["_meta"]["lot_id"] = lot_id
-            if round(old_rate, 4) != round(new_rate, 4):
+            if round(old_rate, 6) != round(new_rate, 6):
                 changes.append({"name": display_name, "old": old_rate, "new": new_rate})
             else:
                 unchanged.append(display_name)

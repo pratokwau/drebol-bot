@@ -96,7 +96,7 @@ def _build_daily_report() -> str:
         latest = meta.get("latest_checked_rate")
         if rate:
             sbp_total += 1
-            if latest and round(float(rate), 4) != round(float(latest), 4):
+            if latest and round(float(rate), 6) != round(float(latest), 6):
                 sbp_changed.append(f"  {game_name}: {rate} → {latest}")
 
     report = (
@@ -183,7 +183,7 @@ async def _background_notifications():
                         meta = gdata.get("_meta", {})
                         old_rate = meta.get("sbp_rate")
                         new_rate = meta.get("latest_checked_rate")
-                        if old_rate and new_rate and round(float(old_rate), 4) != round(float(new_rate), 4):
+                        if old_rate and new_rate and round(float(old_rate), 6) != round(float(new_rate), 6):
                             mp[gname]["_meta"]["sbp_rate"] = new_rate
                             auto_updated.append(f"  {gname}: {old_rate} → {new_rate}")
 
@@ -196,7 +196,7 @@ async def _background_notifications():
                             meta = gdata.get("_meta", {})
                             old_rate = meta.get("rate")
                             new_rate = meta.get("latest_checked_rate")
-                            if old_rate and new_rate and round(float(old_rate), 4) != round(float(new_rate), 4):
+                            if old_rate and new_rate and round(float(old_rate), 6) != round(float(new_rate), 6):
                                 certs[gname]["_meta"]["rate"] = new_rate
                                 cert_updated.append(f"  🎁 {gname}: {old_rate} → {new_rate}")
                         if cert_updated:
@@ -243,7 +243,7 @@ async def _background_notifications():
                 meta = mp.get(gname, {}).get("_meta", {})
                 rate = meta.get("sbp_rate")
                 if rate:
-                    current_rates[gname] = round(float(rate), 4)
+                    current_rates[gname] = round(float(rate), 6)
             last_rates = {}
             if os.path.exists(sbp_file):
                 try:
@@ -254,7 +254,7 @@ async def _background_notifications():
             changed = []
             for gname, rate in current_rates.items():
                 old = last_rates.get(gname)
-                if old is None or abs(float(old) - rate) > 0.0001:
+                if old is None or abs(float(old) - rate) > 0.000001:
                     changed.append(f"  {gname}: {old or '—'} → {rate}")
             if changed:
                 add_notification(f"💱 Изменение СБП:\n" + "\n".join(changed), "warning")
@@ -1255,8 +1255,58 @@ async def minprice_add_variant(request: Request, game_hash: str, user=Depends(re
     return redirect_to(f"/minprice/game/{game_hash}")
 
 
+@app.post("/minprice/game/{game_hash}/update-sbp")
+async def minprice_update_sbp(request: Request, game_hash: str, user=Depends(require_session)):
+    from handlers.minprice import resolve_sbp_rate_for_game
+    mp = _load_mp(ADMIN_ID)
+    game_name = None
+    for name in mp.keys():
+        if _mp_hash(name) == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return JSONResponse({"ok": False, "text": "Игра не найдена"})
+
+    meta = _mp_meta(mp, game_name)
+    gk, ua = db.get_config()
+    if not gk:
+        return JSONResponse({"ok": False, "text": "Golden Key не настроен"})
+
+    lot_id = meta.get("lot_id")
+    lot_id, new_rate = await resolve_sbp_rate_for_game(gk, game_name, lot_id, attempts=5)
+
+    if new_rate is None:
+        return JSONResponse({"ok": False, "text": "Не удалось получить ставку с FunPay"})
+
+    old_rate = meta.get("sbp_rate")
+    meta["lot_id"] = lot_id
+    meta["latest_checked_rate"] = new_rate
+
+    if old_rate and round(float(old_rate), 6) == round(float(new_rate), 6):
+        return JSONResponse({"ok": True, "changed": False, "text": f"Ставка не изменилась: {new_rate}"})
+
+    meta["sbp_rate"] = new_rate
+    _mp_set_meta(mp, game_name, meta)
+    _save_mp(ADMIN_ID, mp)
+
+    # Обновляем демпинг
+    demping_updated = 0
+    try:
+        from handlers.demping import load_demping, _do_update
+        demping = load_demping()
+        result = _do_update(mp, demping, ADMIN_ID, prefs_override={})
+        demping_updated = result.get("updated_lots", 0)
+    except Exception:
+        pass
+
+    old_text = f"{old_rate}" if old_rate else "—"
+    text = f"СБП обновлён: {old_text} → {new_rate}"
+    if demping_updated:
+        text += f" | Демпинг: {demping_updated} лотов"
+    return JSONResponse({"ok": True, "changed": True, "text": text})
+
+
 @app.post("/minprice/game/{game_hash}/edit/{item_id}")
-async def minprice_edit_item(request: Request, game_hash: str, item_id: str, user=Depends(require_session)):
     mp = _load_mp(ADMIN_ID)
     game_name = None
     for name in mp.keys():
@@ -1655,6 +1705,44 @@ async def certs_set_rate(request: Request, game_hash: str, user=Depends(require_
         data[game_name]["_meta"]["rate"] = rate
         save_certificates(data, ADMIN_ID)
     return redirect_to(f"/certs/game/{game_hash}")
+
+
+@app.post("/certs/game/{game_hash}/update-rate")
+async def certs_update_rate(request: Request, game_hash: str, user=Depends(require_session)):
+    from handlers.certificates import load_certificates, save_certificates
+    from handlers.minprice import resolve_sbp_rate_for_game
+    data = load_certificates(ADMIN_ID)
+    game_name = None
+    for name in data.keys():
+        if hashlib.md5(name.encode()).hexdigest()[:8] == game_hash:
+            game_name = name
+            break
+    if not game_name:
+        return JSONResponse({"ok": False, "text": "Игра не найдена"})
+
+    meta = data.get(game_name, {}).get("_meta", {})
+    gk, ua = db.get_config()
+    if not gk:
+        return JSONResponse({"ok": False, "text": "Golden Key не настроен"})
+
+    lot_id = meta.get("lot_id")
+    lot_id, new_rate = await resolve_sbp_rate_for_game(gk, game_name, lot_id, attempts=5)
+
+    if new_rate is None:
+        return JSONResponse({"ok": False, "text": "Не удалось получить ставку с FunPay"})
+
+    old_rate = meta.get("rate")
+    meta["lot_id"] = lot_id
+    meta["latest_checked_rate"] = new_rate
+
+    if old_rate and round(float(old_rate), 6) == round(float(new_rate), 6):
+        return JSONResponse({"ok": True, "changed": False, "text": f"Ставка не изменилась: {new_rate}"})
+
+    meta["rate"] = new_rate
+    data[game_name]["_meta"] = meta
+    save_certificates(data, ADMIN_ID)
+    old_text = f"{old_rate}" if old_rate else "—"
+    return JSONResponse({"ok": True, "changed": True, "text": f"Коэффициент обновлён: {old_text} → {new_rate}"})
 
 
 @app.post("/certs/game/{game_hash}/add")

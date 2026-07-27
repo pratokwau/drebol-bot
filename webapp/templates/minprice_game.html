@@ -14,6 +14,11 @@
       <input name="sbp_rate" value="{{ sbp_rate or '' }}" placeholder="0.8765" style="max-width:120px;" step="0.0001">
       <button type="submit" style="padding:6px 14px;font-size:13px;">OK</button>
     </form>
+    <button onclick="updateSbp()" id="btn-update-sbp" style="padding:6px 14px;font-size:13px;background:var(--accent);">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      Обновить СБП
+    </button>
+    <span id="sbp-result" style="font-size:13px;"></span>
   </div>
 </section>
 
@@ -157,6 +162,28 @@ async function autolink(mode) {
   } finally {
     btn.disabled = false;
     btn.textContent = mode === 'all' ? 'Сопоставить все' : 'Только без лотов';
+  }
+}
+async function updateSbp() {
+  const btn = document.getElementById('btn-update-sbp');
+  const res = document.getElementById('sbp-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Проверяю...';
+  res.innerHTML = '<span style="color:var(--muted);">Получаю ставку с FunPay...</span>';
+  try {
+    const r = await fetch('/minprice/game/{{ game_hash }}/update-sbp', { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      res.innerHTML = '<span style="color:' + (data.changed ? 'var(--green)' : 'var(--muted)') + ';">' + data.text + '</span>';
+      if (data.changed) setTimeout(() => location.reload(), 1500);
+    } else {
+      res.innerHTML = '<span style="color:var(--red);">❌ ' + data.text + '</span>';
+    }
+  } catch (e) {
+    res.innerHTML = '<span style="color:var(--red);">❌ ' + e.message + '</span>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg> Обновить СБП';
   }
 }
 </script>
