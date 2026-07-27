@@ -1307,6 +1307,7 @@ async def minprice_update_sbp(request: Request, game_hash: str, user=Depends(req
 
 
 @app.post("/minprice/game/{game_hash}/edit/{item_id}")
+async def minprice_edit_item(request: Request, game_hash: str, item_id: str, user=Depends(require_session)):
     mp = _load_mp(ADMIN_ID)
     game_name = None
     for name in mp.keys():
