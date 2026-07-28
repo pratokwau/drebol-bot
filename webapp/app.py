@@ -1850,6 +1850,9 @@ async def certs_import_do(request: Request, user=Depends(require_session)):
     if added:
         save_certificates(data, ADMIN_ID)
     return redirect_to("/certs")
+
+
+@app.get("/certs/game/{game_hash}")
 async def certs_game_page(request: Request, game_hash: str, user=Depends(require_session)):
     from handlers.certificates import load_certificates
     data = load_certificates(ADMIN_ID)
