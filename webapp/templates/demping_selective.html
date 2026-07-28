@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Выборочная отправка · Drebol-bot{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Выборочная отправка в Cardinal</h1>
+  <p>Выберите для каждой игры кэшбек, который будет использован при отправке.</p>
+</header>
+
+{% if games %}
+<form method="post" action="/demping/selective-send">
+  <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+    <button type="button" class="ghost" onclick="setAll('no')" style="font-size:13px;padding:6px 14px;">💵 Все без кэшбека</button>
+    <button type="button" class="ghost" onclick="setAll('yes')" style="font-size:13px;padding:6px 14px;">💳 Все с кэшбеком</button>
+    <button type="submit" style="background:var(--green);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+      Отправить в Cardinal
+    </button>
+    <a href="/demping" class="btn ghost" style="text-decoration:none;">← Назад</a>
+  </div>
+
+  <section class="panel">
+    <h2>Игры ({{ games|length }})</h2>
+    <div style="display:grid;gap:6px;">
+      {% for g in games %}
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span style="font-weight:600;color:var(--ink);min-width:200px;">🎮 {{ g.name }}</span>
+        <span style="color:var(--muted);font-size:12px;min-width:80px;">{{ g.items_count }} товаров</span>
+        <div style="display:flex;gap:8px;margin-left:auto;">
+          {% if g.has_no %}
+          <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);cursor:pointer;font-size:13px;">
+            <input type="radio" name="cb_{{ g.name }}" value="no" {{ "checked" if g.default == "no" else "" }} style="width:auto;accent-color:var(--yellow);">
+            💵 Без
+          </label>
+          {% endif %}
+          {% if g.has_yes %}
+          <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);cursor:pointer;font-size:13px;">
+            <input type="radio" name="cb_{{ g.name }}" value="yes" {{ "checked" if g.default == "yes" else "" }} style="width:auto;accent-color:var(--green);">
+            💳 С
+          </label>
+          {% endif %}
+          {% if not g.has_yes and not g.has_no %}
+          <span style="color:var(--muted);font-size:12px;">нет кэшбека</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</form>
+{% else %}
+<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+  <p>Нет игр с привязанными лотами и ставкой СБП.</p>
+  <a href="/demping" class="btn ghost" style="text-decoration:none;margin-top:16px;">← Назад</a>
+</section>
+{% endif %}
+
+<script>
+function setAll(val) {
+  document.querySelectorAll('input[type="radio"][value="' + val + '"]').forEach(r => r.checked = true);
+}
+</script>
+{% endblock %}

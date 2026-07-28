@@ -218,10 +218,13 @@ async def _background_notifications():
                             result = _do_update(mp, demping, ADMIN_ID, prefs_override={})
                             updated = result.get("updated_lots", 0)
                             if updated > 0:
-                                add_notification(
-                                    f"🔄 Цены демпинга обновлены ({updated} лотов). Выбери кэшбек и отправь файл в Cardinal!",
-                                    "warning"
-                                )
+                                details = result.get("updated_details", [])
+                                msg = f"🔄 Цены демпинга обновлены ({updated} лотов). Выбери кэшбек и отправь файл в Cardinal!"
+                                if details:
+                                    msg += "\n\n" + "\n".join(details)
+                                    if len(details) >= 30:
+                                        msg += "\n  ..."
+                                add_notification(msg, "warning")
                         except Exception:
                             pass
                     else:
@@ -264,10 +267,13 @@ async def _background_notifications():
                     result = _do_update(mp, demping, ADMIN_ID, prefs_override={})
                     updated = result.get("updated_lots", 0)
                     if updated > 0:
-                        add_notification(
-                            f"🔄 Цены демпинга обновлены ({updated} лотов). Не забудь отправить файл в Cardinal!",
-                            "warning"
-                        )
+                        details = result.get("updated_details", [])
+                        msg = f"🔄 Цены демпинга обновлены ({updated} лотов). Выбери кэшбек и отправь файл в Cardinal!"
+                        if details:
+                            msg += "\n\n" + "\n".join(details)
+                            if len(details) >= 30:
+                                msg += "\n  ..."
+                        add_notification(msg, "warning")
                 except Exception:
                     pass
             with open(sbp_file, "w", encoding="utf-8") as f:
@@ -1512,6 +1518,108 @@ async def demping_upload(request: Request, user=Depends(require_session)):
                 _add_notif(msg, "warning" if dup_count else "success")
         except Exception:
             pass
+    return redirect_to("/demping")
+
+
+@app.get("/demping/selective")
+async def demping_selective_page(request: Request, user=Depends(require_session)):
+    from handlers.minprice import get_item_offer_ids
+    mp = _load_mp(ADMIN_ID)
+    games = []
+    for game_name in sorted(mp.keys()):
+        game_data = mp.get(game_name, {})
+        meta = game_data.get("_meta", {})
+        sbp_rate = meta.get("sbp_rate")
+        if not sbp_rate:
+            continue
+        items = {k: v for k, v in game_data.items() if k != "_meta" and isinstance(v, dict)}
+        linked_items = []
+        has_yes = False
+        has_no = False
+        for item_id, info in items.items():
+            ids = get_item_offer_ids(info)
+            if not ids:
+                continue
+            cb = info.get("cashback", "none")
+            if cb == "yes":
+                has_yes = True
+            elif cb == "no":
+                has_no = True
+            linked_items.append({"name": info.get("name", ""), "cashback": cb, "offer_ids": ids})
+        if linked_items:
+            games.append({
+                "name": game_name,
+                "has_yes": has_yes,
+                "has_no": has_no,
+                "default": "yes" if has_yes and not has_no else "no",
+                "items_count": len(linked_items),
+            })
+    return templates.TemplateResponse(request=request, name="demping_selective.html", context={
+        "user": user, "games": games,
+    })
+
+
+@app.post("/demping/selective-send")
+async def demping_selective_send(request: Request, user=Depends(require_session)):
+    from handlers.minprice import get_item_offer_ids, calc_min_price
+    from handlers.demping import load_demping, load_demping_settings
+    import shutil, subprocess
+
+    form = await request.form()
+    mp = _load_mp(ADMIN_ID)
+    demping = load_demping()
+    settings = load_demping_settings()
+    target = settings["target_path"]
+    cmd = settings["restart_command"]
+
+    # Собираем prefs из формы: game_name -> cashback choice
+    prefs = {}
+    for key in form.keys():
+        if key.startswith("cb_"):
+            game_name = key[3:]
+            prefs[game_name] = str(form.get(key, "no"))
+
+    # Пересчитываем цены по выбранным кэшбекам
+    offer_to_site_price = {}
+    for game_name, game_data in mp.items():
+        if not isinstance(game_data, dict):
+            continue
+        meta = game_data.get("_meta", {})
+        sbp_rate = _money(meta.get("sbp_rate", 0))
+        if not sbp_rate:
+            continue
+        pref = prefs.get(game_name, "no")
+        items = {k: v for k, v in game_data.items() if k != "_meta" and isinstance(v, dict)}
+        for item_id, info in items.items():
+            ids = get_item_offer_ids(info)
+            if not ids:
+                continue
+            cost = _money(info.get("cost", 0))
+            if cost <= 0:
+                continue
+            min_price = calc_min_price(cost)
+            site_price = round(min_price * sbp_rate, 2)
+            cb = info.get("cashback", "none")
+            for oid in ids:
+                if oid not in offer_to_site_price:
+                    offer_to_site_price[oid] = site_price
+                if cb == pref:
+                    offer_to_site_price[oid] = site_price
+
+    for oid_str, lot in demping.items():
+        oid = int(oid_str)
+        if oid in offer_to_site_price:
+            lot["min_price"] = offer_to_site_price[oid]
+
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8")
+    json.dump(demping, tmp, ensure_ascii=False, indent=2)
+    tmp.close()
+    target_dir = os.path.dirname(target) or "."
+    os.makedirs(target_dir, exist_ok=True)
+    shutil.copy2(tmp.name, target)
+    os.unlink(tmp.name)
+    subprocess.run(cmd, shell=True, capture_output=True, timeout=30)
     return redirect_to("/demping")
 
 

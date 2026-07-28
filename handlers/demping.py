@@ -787,6 +787,7 @@ def _do_update(mp: dict, demping: dict, user_id: int, prefs_override: dict = Non
                         conflicting_lots.add(oid_str)
 
     changed_items = set()
+    updated_details = []
     for oid_str, new_min in target_prices.items():
         old_min = _money(demping[oid_str].get("min_price"))
         if old_min == new_min:
@@ -794,7 +795,12 @@ def _do_update(mp: dict, demping: dict, user_id: int, prefs_override: dict = Non
         else:
             demping[oid_str]["min_price"] = new_min
             updated_lots += 1
-            changed_items.add(target_items.get(oid_str))
+            item_key = target_items.get(oid_str)
+            changed_items.add(item_key)
+            if item_key:
+                game, item, price, cashback, _ = item_key
+                trigger = demping.get(oid_str, {}).get("triggers", "")
+                updated_details.append(f"  #{oid_str} ({item}) — {old_min} → {new_min} ₽")
 
     updated_items = len([item for item in changed_items if item])
     conflicts = []
@@ -814,6 +820,7 @@ def _do_update(mp: dict, demping: dict, user_id: int, prefs_override: dict = Non
     return {
         "updated_lots": updated_lots,
         "updated_items": updated_items,
+        "updated_details": updated_details[:30],
         "unchanged_lots": unchanged_lots,
         "skipped_no_rate": skipped_no_rate,
         "skipped_no_offer": skipped_no_offer,
