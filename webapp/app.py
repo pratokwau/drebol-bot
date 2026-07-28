@@ -768,7 +768,7 @@ async def calc_page(request: Request, user=Depends(require_session)):
 
 
 @app.get("/profits")
-async def profits_page(request: Request, period: str = "day", page: int = 0, date_from: str = "", date_to: str = "", user=Depends(require_session)):
+async def profits_page(request: Request, period: str = "day", page: int = 0, date_from: str = "", date_to: str = "", sort: str = "date", user=Depends(require_session)):
     try:
         profits = _load_admin_profits()
     except Exception:
@@ -819,7 +819,13 @@ async def profits_page(request: Request, period: str = "day", page: int = 0, dat
         if end and dt and dt > end:
             continue
         filtered.append(p)
-    filtered.sort(key=lambda x: str(x.get("date", "")), reverse=True)
+
+    if sort == "profit_desc":
+        filtered.sort(key=lambda x: float(x.get("profit") or 0), reverse=True)
+    elif sort == "profit_asc":
+        filtered.sort(key=lambda x: float(x.get("profit") or 0))
+    else:
+        filtered.sort(key=lambda x: str(x.get("date", "")), reverse=True)
 
     per_page = 15
     total = len(filtered)
@@ -846,6 +852,9 @@ async def profits_page(request: Request, period: str = "day", page: int = 0, dat
             "stats": stats,
             "period": period,
             "period_label": period_label,
+            "sort": sort,
+            "date_from": date_from,
+            "date_to": date_to,
         },
     )
 
