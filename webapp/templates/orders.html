@@ -92,6 +92,8 @@ async function aiFillStart() {
       html += '<div style="padding:4px 0;border-bottom:1px solid var(--border);">';
       html += statusIcon + ' <b>#' + r.order_id + '</b> → закуп: <b>' + buyLabel + '</b>' + profitLabel;
       if (r.status === 'not_found') html += ' <span style="color:var(--muted);">— не найдено</span>';
+      if (r.status === 'invalid_price') html += ' <span style="color:var(--red);">— цена не из базы (' + r.buy_price.toFixed(2) + ')</span>';
+      if (r.status === 'parse_error') html += ' <span style="color:var(--red);">— ошибка парсинга</span>';
       html += '</div>';
     }
     log.innerHTML = html;

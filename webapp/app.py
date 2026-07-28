@@ -1022,13 +1022,15 @@ async def orders_ai_fill(request: Request, user=Depends(require_session)):
 ЗАПРОС МЕНЕДЖЕРА:
 {prompt}
 
-ЗАДАЧА: Для каждого заказа выбери подходящую закупочную цену из списка выше.
+ЗАДАЧА: Для каждого заказа выбери подходящую закупочную цену ТОЛЬКО из списка выше.
 
 ПРАВИЛА:
 1. Выбирай закупку по названию товара — она должна соответствовать заказу.
 2. Если в запросе указано "с кэшбеком" — выбирай вариант с кэшбеком, если он есть.
 3. Если с кэшбеком нет — используй без кэшбека.
 4. Цена продажи в заказе может помочь определить правильный вариант (ближайшая по размеру).
+5. ВАЖНО: цена ДОЛЖНА быть ТОЧНО из списка доступных закупочных цен. Не придумывай цены!
+   Если ни один вариант не подходит — напиши "не найдено".
 
 ФОРМАТ ОТВЕТА (строго):
 order_id → цена_закупа
@@ -1040,7 +1042,7 @@ DEF456 → 180.50
 Если для заказа не удалось подобрать:
 order_id → не найдено
 
-Отвечай ТОЛЬКО строками с →."""
+Отвечай ТОЛЬКО строками с →. Никаких других комментариев."""
 
     # Вызываем ИИ
     providers = [
@@ -1084,6 +1086,11 @@ order_id → не найдено
         return JSONResponse({"ok": False, "error": "ИИ не ответил. Попробуйте позже."})
 
     # Парсим ответ ИИ
+    valid_prices = set()
+    for variants in buy_variants.values():
+        for v in variants:
+            valid_prices.add(v["cost"])
+
     results = []
     saved_count = 0
     for line in ai_response.split("\n"):
@@ -1102,6 +1109,11 @@ order_id → не найдено
             buy_price = float(buy_str.replace(",", ".").replace("₽", "").strip())
         except ValueError:
             results.append({"order_id": order_id, "buy_price": None, "status": "parse_error"})
+            continue
+
+        # Валидация: цена должна существовать в базе
+        if buy_price not in valid_prices:
+            results.append({"order_id": order_id, "buy_price": buy_price, "status": "invalid_price"})
             continue
 
         # Ищем sell_price для этого заказа
