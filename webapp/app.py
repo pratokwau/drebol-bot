@@ -740,7 +740,7 @@ async def orders_page(
     q: str = "",
     user=Depends(require_session),
 ):
-    cards, error = _order_cards(limit=max(10, min(limit, 500)), sort=sort, mode=mode)
+    cards, error = _order_cards(limit=max(10, limit), sort=sort, mode=mode)
     if q.strip():
         query = q.strip().lower()
         query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
