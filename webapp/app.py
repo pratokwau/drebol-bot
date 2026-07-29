@@ -764,6 +764,7 @@ async def orders_page(
                         profit = round((sell_price * 0.97) - cost, 2) if cost is not None else None
                         found.append({
                             "id": order_id,
+                            "game": _sale_game(sale),
                             "product": product_name,
                             "sell_price": sell_price,
                             "date": str(getattr(sale, "date", getattr(sale, "created_at", ""))),
