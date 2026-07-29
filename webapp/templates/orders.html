@@ -19,9 +19,16 @@
       <option value="unfilled" {{ "selected" if sort == "unfilled" else "" }}>Сначала без закупа</option>
       <option value="profit" {{ "selected" if sort == "profit" else "" }}>По прибыли</option>
     </select>
-    <input name="limit" value="{{ limit }}" placeholder="Лимит" style="max-width:100px;">
     <button type="submit">Найти</button>
   </form>
+</section>
+
+<section class="panel" id="load-more-panel" style="margin-bottom:16px;text-align:center;display:none;">
+  <button id="load-more-btn" onclick="loadMore()" class="ghost" style="padding:10px 24px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    Загрузить ещё 500
+  </button>
+  <div id="load-status" style="font-size:13px;color:var(--muted);margin-top:8px;"></div>
 </section>
 
 {% if error %}
@@ -132,5 +139,83 @@
       setTimeout(() => card.remove(), 300);
     });
   });
+
+  // Load more
+  let currentOffset = {{ total_loaded }};
+  const loadPanel = document.getElementById('load-more-panel');
+  const loadBtn = document.getElementById('load-more-btn');
+  const loadStatus = document.getElementById('load-status');
+
+  {% if total_loaded >= 500 %}
+    loadPanel.style.display = 'block';
+  {% endif %}
+
+  async function loadMore() {
+    loadBtn.disabled = true;
+    loadBtn.textContent = '⏳ Загрузка...';
+    loadStatus.textContent = 'Загружаем следующую партию...';
+
+    try {
+      const fd = new FormData();
+      fd.append('offset', currentOffset);
+      fd.append('mode', '{{ mode }}');
+      fd.append('sort', '{{ sort }}');
+      const r = await fetch('/orders/load-more', { method: 'POST', body: fd, headers: { 'x-requested-with': 'fetch' } });
+      const data = await r.json();
+
+      if (!data.ok) {
+        loadStatus.textContent = 'Ошибка: ' + (data.error || 'неизвестная');
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Загрузить ещё 500';
+        return;
+      }
+
+      const grid = document.querySelector('.cards-grid');
+      for (const card of data.cards) {
+        const article = document.createElement('article');
+        article.className = 'order-card';
+        article.dataset.orderCard = card.id;
+        article.innerHTML = renderCard(card);
+        grid.appendChild(article);
+      }
+
+      currentOffset = data.next_offset;
+      loadStatus.textContent = 'Загружено ' + currentOffset + ' из ' + data.total;
+
+      if (!data.has_more) {
+        loadPanel.style.display = 'none';
+      } else {
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Загрузить ещё 500';
+      }
+    } catch (e) {
+      loadStatus.textContent = 'Ошибка: ' + e.message;
+      loadBtn.disabled = false;
+      loadBtn.textContent = 'Загрузить ещё 500';
+    }
+  }
+
+  function renderCard(card) {
+    const costClass = card.cost != null ? 'pill ok' : 'pill warn';
+    const costText = card.cost != null ? 'закуп есть' : 'без закупа';
+    const profitVal = card.profit != null ? card.profit.toFixed(2) : '—';
+    const profitColor = card.profit > 0 ? 'var(--green)' : card.profit < 0 ? 'var(--red)' : 'var(--ink)';
+    return `
+      <div class="order-top">
+        <div>
+          <span class="label">Заказ #${card.id}</span>
+          <h2>${card.game || 'Без игры'}</h2>
+        </div>
+        <span class="${costClass}">${costText}</span>
+      </div>
+      <p class="order-product">${card.product}</p>
+      <div class="order-meta">
+        <span>${card.date || ''}</span>
+        <span>Продажа: <b>${card.sell_price.toFixed(2)} ₽</b></span>
+        <span>Закуп: <b>${(card.cost || 0).toFixed(2)} ₽</b></span>
+        <span>Чистыми: <b style="color:${profitColor}">${profitVal} ₽</b></span>
+      </div>
+    `;
+  }
 </script>
 {% endblock %}

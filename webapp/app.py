@@ -740,7 +740,7 @@ async def orders_page(
     q: str = "",
     user=Depends(require_session),
 ):
-    cards, error = _order_cards(limit=max(10, limit), sort=sort, mode=mode)
+    cards, error = _order_cards(limit=max(10, min(limit, 500)), sort=sort, mode=mode)
     if q.strip():
         query = q.strip().lower()
         query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
@@ -787,8 +787,55 @@ async def orders_page(
             "limit": limit,
             "q": q,
             "stats": _all_profit_stats(_load_admin_profits()),
+            "total_loaded": len(cards),
         },
     )
+
+
+@app.post("/orders/load-more")
+async def orders_load_more(request: Request, user=Depends(require_session)):
+    """Загружает следующую партию заказов"""
+    form = await request.form()
+    offset = int(str(form.get("offset", "0")))
+    mode = str(form.get("mode", "all"))
+    sort = str(form.get("sort", "date"))
+    limit = 500
+
+    # Загружаем следующую партию
+    cards, error = _order_cards(limit=limit, sort=sort, mode=mode)
+    if error:
+        return JSONResponse({"ok": False, "error": error})
+
+    # Пропускаем уже загруженные (по offset)
+    # Простая эмуляция offset — загружаем заново с большим лимитом и режем
+    all_cards, error = _order_cards(limit=offset + limit, sort=sort, mode=mode)
+    if error:
+        return JSONResponse({"ok": False, "error": error})
+
+    new_cards = all_cards[offset:offset + limit] if offset < len(all_cards) else []
+    has_more = (offset + limit) < len(all_cards)
+
+    # Сериализуем карточки
+    result = []
+    for card in new_cards:
+        result.append({
+            "id": card["id"],
+            "game": card.get("game", ""),
+            "product": card.get("product", ""),
+            "sell_price": card.get("sell_price", 0),
+            "cost": card.get("cost"),
+            "profit": card.get("profit"),
+            "date": card.get("date", ""),
+            "variants": card.get("variants", []),
+        })
+
+    return JSONResponse({
+        "ok": True,
+        "cards": result,
+        "has_more": has_more,
+        "next_offset": offset + limit,
+        "total": len(all_cards),
+    })
 
 
 @app.get("/calc")
