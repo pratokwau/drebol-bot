@@ -757,14 +757,19 @@ async def orders_page(
                     if sale:
                         product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
                         sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
+                        order_id = str(getattr(sale, "id", ""))
+                        # Проверяем есть ли закуп в базе
+                        existing_cost = orders_db.get_prime_cost(order_id)
+                        cost = _money(existing_cost) if existing_cost is not None else None
+                        profit = round((sell_price * 0.97) - cost, 2) if cost is not None else None
                         found.append({
-                            "id": str(getattr(sale, "id", "")),
+                            "id": order_id,
                             "product": product_name,
                             "sell_price": sell_price,
                             "date": str(getattr(sale, "date", getattr(sale, "created_at", ""))),
-                            "cost": None,
-                            "profit": None,
-                            "variants": get_auto_buy_prices(product_name, "", 0)[:4],
+                            "cost": cost,
+                            "profit": profit,
+                            "variants": get_auto_buy_prices(product_name, "", 0)[:4] if cost is None else [],
                         })
             except Exception:
                 pass
