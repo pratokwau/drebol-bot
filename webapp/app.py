@@ -749,20 +749,22 @@ async def orders_page(
         if not found:
             # Ищем через API FunPay глубже
             try:
-                from handlers.funpay_admin import make_funpay_account, find_funpay_sale, clean_price
+                from handlers.funpay_admin import make_funpay_account, find_funpay_sale, clean_price, get_auto_buy_prices
                 gk, ua = db.get_config()
                 if gk:
                     account = make_funpay_account(gk, ua)
-                    sale = find_funpay_sale(account, query, max_depth=5000)
+                    sale, _ = find_funpay_sale(account, query, max_depth=5000)
                     if sale:
+                        product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
+                        sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
                         found.append({
                             "id": str(getattr(sale, "id", "")),
-                            "product": getattr(sale, "description", ""),
-                            "sell_price": _money(clean_price(getattr(sale, "price", 0))),
-                            "date": str(getattr(sale, "date", "")),
+                            "product": product_name,
+                            "sell_price": sell_price,
+                            "date": str(getattr(sale, "date", getattr(sale, "created_at", ""))),
                             "cost": None,
                             "profit": None,
-                            "variants": [],
+                            "variants": get_auto_buy_prices(product_name, "", 0)[:4],
                         })
             except Exception:
                 pass
