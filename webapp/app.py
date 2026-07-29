@@ -740,14 +740,33 @@ async def orders_page(
     q: str = "",
     user=Depends(require_session),
 ):
-    # При поиске — всегда загружаем максимум
-    fetch_limit = 500 if q.strip() else max(10, min(limit, 500))
-    cards, error = _order_cards(limit=fetch_limit, sort=sort, mode=mode)
+    cards, error = _order_cards(limit=max(10, min(limit, 500)), sort=sort, mode=mode)
     if q.strip():
         query = q.strip().lower()
         query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
         query = query.strip("/").lstrip("#").lower()
-        cards = [c for c in cards if query in str(c["id"]).lower() or query in str(c.get("product", "")).lower()]
+        found = [c for c in cards if query in str(c["id"]).lower() or query in str(c.get("product", "")).lower()]
+        if not found:
+            # Ищем через API FunPay глубже
+            try:
+                from handlers.funpay_admin import make_funpay_account, find_funpay_sale, clean_price
+                gk, ua = db.get_config()
+                if gk:
+                    account = make_funpay_account(gk, ua)
+                    sale = find_funpay_sale(account, query, max_depth=5000)
+                    if sale:
+                        found.append({
+                            "id": str(getattr(sale, "id", "")),
+                            "product": getattr(sale, "description", ""),
+                            "sell_price": _money(clean_price(getattr(sale, "price", 0))),
+                            "date": str(getattr(sale, "date", "")),
+                            "cost": None,
+                            "profit": None,
+                            "variants": [],
+                        })
+            except Exception:
+                pass
+        cards = found
     return templates.TemplateResponse(
         request=request,
         name="orders.html",

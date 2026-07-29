@@ -19,6 +19,7 @@
       <option value="unfilled" {{ "selected" if sort == "unfilled" else "" }}>Сначала без закупа</option>
       <option value="profit" {{ "selected" if sort == "profit" else "" }}>По прибыли</option>
     </select>
+    <input name="limit" value="{{ limit }}" placeholder="Лимит" style="max-width:100px;">
     <button type="submit">Найти</button>
   </form>
 </section>
