@@ -740,12 +740,14 @@ async def orders_page(
     q: str = "",
     user=Depends(require_session),
 ):
-    cards, error = _order_cards(limit=max(10, min(limit, 500)), sort=sort, mode=mode)
+    # При поиске — всегда загружаем максимум
+    fetch_limit = 500 if q.strip() else max(10, min(limit, 500))
+    cards, error = _order_cards(limit=fetch_limit, sort=sort, mode=mode)
     if q.strip():
         query = q.strip().lower()
         query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
         query = query.strip("/").lstrip("#").lower()
-        cards = [c for c in cards if query in str(c["id"]).lower()]
+        cards = [c for c in cards if query in str(c["id"]).lower() or query in str(c.get("product", "")).lower()]
     return templates.TemplateResponse(
         request=request,
         name="orders.html",
