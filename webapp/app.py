@@ -741,6 +741,7 @@ async def orders_page(
     user=Depends(require_session),
 ):
     cards, error = [], ""
+    sales_count = 0
     # Загружаем только первые 500 — остальное через load-more
     try:
         from handlers.funpay_admin import make_funpay_account, fetch_funpay_sales_window, clean_price, extract_order_amount, get_auto_buy_prices
@@ -748,6 +749,7 @@ async def orders_page(
         if gk:
             account = make_funpay_account(gk, ua)
             sales = fetch_funpay_sales_window(account, offset=0, limit=500)
+            sales_count = len(sales)
             for sale in sales:
                 order_id = str(getattr(sale, "id", ""))
                 if not order_id:
@@ -759,6 +761,7 @@ async def orders_page(
                 product_name = getattr(sale, "description", getattr(sale, "product_name", "Без названия"))
                 order_date = str(getattr(sale, "date", getattr(sale, "created_at", "")))
                 order_amount = extract_order_amount(product_name)
+                order_game = _sale_game(sale)
                 cost = orders_db.get_prime_cost(order_id)
                 if mode == "unfilled" and cost is not None:
                     continue
@@ -768,10 +771,10 @@ async def orders_page(
                 if sell_override is not None:
                     sell_price = _money(sell_override)
                 profit = (sell_price * 0.97) - _money(cost) if cost is not None else None
-                variants = get_auto_buy_prices(product_name, "", order_amount)[:4] if cost is None else []
+                variants = get_auto_buy_prices(product_name, order_game, order_amount)[:4] if cost is None else []
                 cards.append({
                     "id": order_id,
-                    "game": _sale_game(sale),
+                    "game": order_game,
                     "product": product_name,
                     "sell_price": sell_price,
                     "date": order_date,
@@ -829,6 +832,7 @@ async def orders_page(
             "q": q,
             "stats": _all_profit_stats(_load_admin_profits()),
             "total_loaded": len(cards),
+            "sales_count": sales_count,
         },
     )
 
@@ -862,6 +866,7 @@ async def orders_load_more(request: Request, user=Depends(require_session)):
         product_name = getattr(sale, "description", getattr(sale, "product_name", "Без названия"))
         order_date = str(getattr(sale, "date", getattr(sale, "created_at", "")))
         order_amount = extract_order_amount(product_name)
+        order_game = _sale_game(sale)
         cost = orders_db.get_prime_cost(order_id)
 
         if mode == "unfilled" and cost is not None:
@@ -874,11 +879,11 @@ async def orders_load_more(request: Request, user=Depends(require_session)):
             sell_price = _money(sell_override)
 
         profit = (sell_price * 0.97) - _money(cost) if cost is not None else None
-        variants = get_auto_buy_prices(product_name, "", order_amount)[:4] if cost is None else []
+        variants = get_auto_buy_prices(product_name, order_game, order_amount)[:4] if cost is None else []
 
         result.append({
             "id": order_id,
-            "game": "",
+            "game": order_game,
             "product": product_name,
             "sell_price": sell_price,
             "cost": _money(cost) if cost is not None else None,
