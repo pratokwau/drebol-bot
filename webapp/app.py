@@ -740,14 +740,56 @@ async def orders_page(
     q: str = "",
     user=Depends(require_session),
 ):
-    cards, error = _order_cards(limit=max(10, min(limit, 500)), sort=sort, mode=mode)
+    cards, error = [], ""
+    # Загружаем только первые 500 — остальное через load-more
+    try:
+        from handlers.funpay_admin import make_funpay_account, fetch_funpay_sales_window, clean_price, extract_order_amount, get_auto_buy_prices
+        gk, ua = db.get_config()
+        if gk:
+            account = make_funpay_account(gk, ua)
+            sales = fetch_funpay_sales_window(account, offset=0, limit=500)
+            for sale in sales:
+                order_id = str(getattr(sale, "id", ""))
+                if not order_id:
+                    continue
+                status_text = str(getattr(sale, "status", "") or "")
+                if "refund" in status_text.lower():
+                    continue
+                sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
+                product_name = getattr(sale, "description", getattr(sale, "product_name", "Без названия"))
+                order_date = str(getattr(sale, "date", getattr(sale, "created_at", "")))
+                order_amount = extract_order_amount(product_name)
+                cost = orders_db.get_prime_cost(order_id)
+                if mode == "unfilled" and cost is not None:
+                    continue
+                if mode == "filled" and cost is None:
+                    continue
+                sell_override = orders_db.get_sell_price(order_id) if hasattr(orders_db, "get_sell_price") else None
+                if sell_override is not None:
+                    sell_price = _money(sell_override)
+                profit = (sell_price * 0.97) - _money(cost) if cost is not None else None
+                variants = get_auto_buy_prices(product_name, "", order_amount)[:4] if cost is None else []
+                cards.append({
+                    "id": order_id,
+                    "game": _sale_game(sale),
+                    "product": product_name,
+                    "sell_price": sell_price,
+                    "date": order_date,
+                    "cost": _money(cost) if cost is not None else None,
+                    "profit": round(profit, 2) if profit is not None else None,
+                    "variants": variants,
+                })
+        else:
+            error = "Golden Key не настроен"
+    except Exception as e:
+        error = f"Ошибка: {e}"
+
     if q.strip():
         query = q.strip().lower()
         query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
         query = query.strip("/").lstrip("#").lower()
         found = [c for c in cards if query in str(c["id"]).lower() or query in str(c.get("product", "")).lower()]
         if not found:
-            # Ищем через API FunPay глубже
             try:
                 from handlers.funpay_admin import make_funpay_account, find_funpay_sale, clean_price, get_auto_buy_prices
                 gk, ua = db.get_config()
@@ -758,7 +800,6 @@ async def orders_page(
                         product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
                         sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
                         order_id = str(getattr(sale, "id", ""))
-                        # Проверяем есть ли закуп в базе
                         existing_cost = orders_db.get_prime_cost(order_id)
                         cost = _money(existing_cost) if existing_cost is not None else None
                         profit = round((sell_price * 0.97) - cost, 2) if cost is not None else None
