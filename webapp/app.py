@@ -741,15 +741,17 @@ async def orders_page(
     user=Depends(require_session),
 ):
     cards, error = [], ""
-    sales_count = 0
-    # Загружаем только первые 500 — остальное через load-more
+    max_offset = max(10, limit)  # сколько всего заказов сканируем с FunPay
+    scanned = 0
+
     try:
         from handlers.funpay_admin import make_funpay_account, fetch_funpay_sales_window, clean_price, extract_order_amount, get_auto_buy_prices
         gk, ua = db.get_config()
         if gk:
             account = make_funpay_account(gk, ua)
+            # Загружаем первую партию 500
             sales = fetch_funpay_sales_window(account, offset=0, limit=500)
-            sales_count = len(sales)
+            scanned = len(sales)
             for sale in sales:
                 order_id = str(getattr(sale, "id", ""))
                 if not order_id:
@@ -832,19 +834,19 @@ async def orders_page(
             "q": q,
             "stats": _all_profit_stats(_load_admin_profits()),
             "total_loaded": len(cards),
-            "sales_count": sales_count,
+            "scanned": scanned,
+            "max_offset": max_offset,
         },
     )
 
 
 @app.post("/orders/load-more")
 async def orders_load_more(request: Request, user=Depends(require_session)):
-    """Загружает следующую партию заказов"""
     from handlers.funpay_admin import make_funpay_account, fetch_funpay_sales_window, clean_price, extract_order_amount, get_auto_buy_prices
     form = await request.form()
     offset = int(str(form.get("offset", "0")))
     mode = str(form.get("mode", "all"))
-    sort = str(form.get("sort", "date"))
+    max_offset = int(str(form.get("max_offset", "5000")))
 
     gk, ua = db.get_config()
     if not gk:
@@ -861,26 +863,21 @@ async def orders_load_more(request: Request, user=Depends(require_session)):
         status_text = str(getattr(sale, "status", "") or "")
         if "refund" in status_text.lower():
             continue
-
         sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
         product_name = getattr(sale, "description", getattr(sale, "product_name", "Без названия"))
         order_date = str(getattr(sale, "date", getattr(sale, "created_at", "")))
         order_amount = extract_order_amount(product_name)
         order_game = _sale_game(sale)
         cost = orders_db.get_prime_cost(order_id)
-
         if mode == "unfilled" and cost is not None:
             continue
         if mode == "filled" and cost is None:
             continue
-
         sell_override = orders_db.get_sell_price(order_id) if hasattr(orders_db, "get_sell_price") else None
         if sell_override is not None:
             sell_price = _money(sell_override)
-
         profit = (sell_price * 0.97) - _money(cost) if cost is not None else None
         variants = get_auto_buy_prices(product_name, order_game, order_amount)[:4] if cost is None else []
-
         result.append({
             "id": order_id,
             "game": order_game,
@@ -891,15 +888,17 @@ async def orders_load_more(request: Request, user=Depends(require_session)):
             "date": order_date,
             "variants": variants,
         })
-
         if len(result) >= 500:
             break
+
+    next_offset = offset + len(result)
+    has_more = len(sales) >= 500 and next_offset < max_offset
 
     return JSONResponse({
         "ok": True,
         "cards": result,
-        "has_more": len(result) >= 500,
-        "next_offset": offset + len(result),
+        "has_more": has_more,
+        "next_offset": next_offset,
     })
 
 

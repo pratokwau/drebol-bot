@@ -148,9 +148,10 @@
   const loadBtn = document.getElementById('load-more-btn');
   const loadStatus = document.getElementById('load-status');
 
-  {% if sales_count >= 500 %}
+  {% if scanned >= 500 %}
     loadPanel.style.display = 'block';
   {% endif %}
+  const maxOffset = {{ max_offset }};
 
   async function loadMore() {
     loadBtn.disabled = true;
@@ -161,7 +162,7 @@
       const fd = new FormData();
       fd.append('offset', currentOffset);
       fd.append('mode', '{{ mode }}');
-      fd.append('sort', '{{ sort }}');
+      fd.append('max_offset', maxOffset);
       const r = await fetch('/orders/load-more', { method: 'POST', body: fd, headers: { 'x-requested-with': 'fetch' } });
       const data = await r.json();
 
@@ -182,7 +183,7 @@
       }
 
       currentOffset = data.next_offset;
-      loadStatus.textContent = 'Загружено ' + currentOffset + ' (всего ' + data.total + ')'
+      loadStatus.textContent = 'Загружено ' + currentOffset + ' из ' + maxOffset;
 
       if (!data.has_more) {
         loadPanel.style.display = 'none';
