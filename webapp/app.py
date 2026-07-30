@@ -795,46 +795,65 @@ async def orders_page(
 @app.post("/orders/load-more")
 async def orders_load_more(request: Request, user=Depends(require_session)):
     """Загружает следующую партию заказов"""
+    from handlers.funpay_admin import make_funpay_account, fetch_funpay_sales_window, clean_price, extract_order_amount, get_auto_buy_prices
     form = await request.form()
     offset = int(str(form.get("offset", "0")))
     mode = str(form.get("mode", "all"))
     sort = str(form.get("sort", "date"))
-    limit = 500
 
-    # Загружаем следующую партию
-    cards, error = _order_cards(limit=limit, sort=sort, mode=mode)
-    if error:
-        return JSONResponse({"ok": False, "error": error})
+    gk, ua = db.get_config()
+    if not gk:
+        return JSONResponse({"ok": False, "error": "Golden Key не настроен"})
 
-    # Пропускаем уже загруженные (по offset)
-    # Простая эмуляция offset — загружаем заново с большим лимитом и режем
-    all_cards, error = _order_cards(limit=offset + limit, sort=sort, mode=mode)
-    if error:
-        return JSONResponse({"ok": False, "error": error})
+    account = make_funpay_account(gk, ua)
+    sales = fetch_funpay_sales_window(account, offset=offset, limit=500)
 
-    new_cards = all_cards[offset:offset + limit] if offset < len(all_cards) else []
-    has_more = (offset + limit) < len(all_cards)
-
-    # Сериализуем карточки
     result = []
-    for card in new_cards:
+    for sale in sales:
+        order_id = str(getattr(sale, "id", ""))
+        if not order_id:
+            continue
+        status_text = str(getattr(sale, "status", "") or "")
+        if "refund" in status_text.lower():
+            continue
+
+        sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
+        product_name = getattr(sale, "description", getattr(sale, "product_name", "Без названия"))
+        order_date = str(getattr(sale, "date", getattr(sale, "created_at", "")))
+        order_amount = extract_order_amount(product_name)
+        cost = orders_db.get_prime_cost(order_id)
+
+        if mode == "unfilled" and cost is not None:
+            continue
+        if mode == "filled" and cost is None:
+            continue
+
+        sell_override = orders_db.get_sell_price(order_id) if hasattr(orders_db, "get_sell_price") else None
+        if sell_override is not None:
+            sell_price = _money(sell_override)
+
+        profit = (sell_price * 0.97) - _money(cost) if cost is not None else None
+        variants = get_auto_buy_prices(product_name, "", order_amount)[:4] if cost is None else []
+
         result.append({
-            "id": card["id"],
-            "game": card.get("game", ""),
-            "product": card.get("product", ""),
-            "sell_price": card.get("sell_price", 0),
-            "cost": card.get("cost"),
-            "profit": card.get("profit"),
-            "date": card.get("date", ""),
-            "variants": card.get("variants", []),
+            "id": order_id,
+            "game": "",
+            "product": product_name,
+            "sell_price": sell_price,
+            "cost": _money(cost) if cost is not None else None,
+            "profit": round(profit, 2) if profit is not None else None,
+            "date": order_date,
+            "variants": variants,
         })
+
+        if len(result) >= 500:
+            break
 
     return JSONResponse({
         "ok": True,
         "cards": result,
-        "has_more": has_more,
-        "next_offset": offset + limit,
-        "total": len(all_cards),
+        "has_more": len(result) >= 500,
+        "next_offset": offset + len(result),
     })
 
 

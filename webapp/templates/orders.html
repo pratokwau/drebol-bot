@@ -20,6 +20,7 @@
       <option value="profit" {{ "selected" if sort == "profit" else "" }}>По прибыли</option>
     </select>
     <button type="submit">Найти</button>
+    <input name="limit" value="{{ limit }}" placeholder="Лимит" style="max-width:100px;">
   </form>
 </section>
 
@@ -61,7 +62,8 @@
 
       {% if card.variants %}
         <div class="variants">
-          {% for variant in card.variants %}
+          {% set sorted = card.variants|sort(attribute='cashback_label', reverse=True) %}
+          {% for variant in sorted %}
             <form method="post" action="/orders/save-cost?ajax=1" data-ajax-order>
               <input type="hidden" name="order_id" value="{{ card.id }}">
               <input type="hidden" name="buy_price" value="{{ variant.total_cost }}">
@@ -180,7 +182,7 @@
       }
 
       currentOffset = data.next_offset;
-      loadStatus.textContent = 'Загружено ' + currentOffset + ' из ' + data.total;
+      loadStatus.textContent = 'Загружено ' + currentOffset + ' (всего ' + data.total + ')'
 
       if (!data.has_more) {
         loadPanel.style.display = 'none';
@@ -200,6 +202,29 @@
     const costText = card.cost != null ? 'закуп есть' : 'без закупа';
     const profitVal = card.profit != null ? card.profit.toFixed(2) : '—';
     const profitColor = card.profit > 0 ? 'var(--green)' : card.profit < 0 ? 'var(--red)' : 'var(--ink)';
+
+    let variantsHtml = '';
+    if (card.variants && card.variants.length) {
+      // Сортируем: с кэшбеком — сверху, без кэшбека — снизу
+      const sorted = [...card.variants].sort((a, b) => {
+        const aHas = (a.cashback_label || '').toLowerCase().includes('кэшбек');
+        const bHas = (b.cashback_label || '').toLowerCase().includes('кэшбек');
+        return aHas < bHas ? 1 : -1;
+      });
+      variantsHtml = '<div class="variants">';
+      for (const v of sorted) {
+        variantsHtml += '<form method="post" action="/orders/save-cost?ajax=1" data-ajax-order>' +
+          '<input type="hidden" name="order_id" value="' + card.id + '">' +
+          '<input type="hidden" name="buy_price" value="' + v.total_cost + '">' +
+          '<input type="hidden" name="sell_price" value="' + card.sell_price + '" data-sync-sell>' +
+          '<input type="hidden" name="order_date" value="' + (card.date || '') + '">' +
+          '<input type="hidden" name="ajax" value="1">' +
+          '<button type="submit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+          v.title + ' · ' + v.cashback_label + ' · ' + v.total_cost.toFixed(2) + ' ₽</button></form>';
+      }
+      variantsHtml += '</div>';
+    }
+
     return `
       <div class="order-top">
         <div>
@@ -215,6 +240,7 @@
         <span>Закуп: <b>${(card.cost || 0).toFixed(2)} ₽</b></span>
         <span>Чистыми: <b style="color:${profitColor}">${profitVal} ₽</b></span>
       </div>
+      ${variantsHtml}
     `;
   }
 </script>
