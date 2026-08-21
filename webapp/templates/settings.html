@@ -54,6 +54,59 @@
 
 <section class="panel">
   <h2>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+    Пользователи сайта
+  </h2>
+  <p style="color:var(--muted);font-size:14px;margin-bottom:14px;">Добавляй отдельные логины для входа в веб-панель.</p>
+  <form method="post" action="/settings/accounts/add" class="form-grid" style="max-width:720px;">
+    <label>Логин
+      <input name="username" autocomplete="off" placeholder="manager1">
+    </label>
+    <label>Пароль
+      <input name="password" type="text" autocomplete="new-password" placeholder="Придумай пароль">
+    </label>
+    <button type="submit" style="align-self:end;">Добавить пользователя</button>
+  </form>
+
+  <div style="margin-top:18px;overflow:auto;">
+    <table>
+      <thead>
+        <tr><th>Логин</th><th>Статус</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for account in accounts %}
+          <tr>
+            <td><b>{{ account.username }}</b></td>
+            <td>
+              {% if account.active %}
+                <span class="pill ok">активен</span>
+              {% else %}
+                <span class="pill warn">отключён</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+              <form method="post" action="/settings/accounts/toggle" style="display:inline;">
+                <input type="hidden" name="username" value="{{ account.username }}">
+                <button class="ghost" type="submit" style="padding:4px 10px;font-size:12px;">
+                  {{ "Отключить" if account.active else "Включить" }}
+                </button>
+              </form>
+              <form method="post" action="/settings/accounts/delete" style="display:inline;margin-left:6px;">
+                <input type="hidden" name="username" value="{{ account.username }}">
+                <button class="danger" type="submit" style="padding:4px 10px;font-size:12px;">Удалить</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3" style="color:var(--muted);">Пока нет дополнительных пользователей.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
     Сессии
   </h2>

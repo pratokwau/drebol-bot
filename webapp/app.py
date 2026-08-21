@@ -741,18 +741,28 @@ async def orders_page(
     user=Depends(require_session),
 ):
     cards, error = [], ""
-    max_offset = max(10, limit)  # сколько всего заказов сканируем с FunPay
-    scanned = 0
+    target = max(10, limit)
 
     try:
         from handlers.funpay_admin import make_funpay_account, fetch_funpay_sales_window, clean_price, extract_order_amount, get_auto_buy_prices
         gk, ua = db.get_config()
         if gk:
             account = make_funpay_account(gk, ua)
-            # Загружаем первую партию 500
-            sales = fetch_funpay_sales_window(account, offset=0, limit=500)
-            scanned = len(sales)
-            for sale in sales:
+            # Загружаем все заказы по 500, пока не наберём target
+            fetched = []
+            offset = 0
+            while len(fetched) < target:
+                batch = fetch_funpay_sales_window(account, offset=offset, limit=500)
+                if not batch:
+                    break
+                fetched.extend(batch)
+                offset += 500
+                if len(batch) < 500:
+                    break
+            # Обрезаем до target
+            fetched = fetched[:target]
+
+            for sale in fetched:
                 order_id = str(getattr(sale, "id", ""))
                 if not order_id:
                     continue
@@ -784,43 +794,40 @@ async def orders_page(
                     "profit": round(profit, 2) if profit is not None else None,
                     "variants": variants,
                 })
-        else:
-            error = "Golden Key не настроен"
-    except Exception as e:
-        error = f"Ошибка: {e}"
-
-    if q.strip():
-        query = q.strip().lower()
-        query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
-        query = query.strip("/").lstrip("#").lower()
-        found = [c for c in cards if query in str(c["id"]).lower() or query in str(c.get("product", "")).lower()]
-        if not found:
-            try:
-                from handlers.funpay_admin import make_funpay_account, find_funpay_sale, clean_price, get_auto_buy_prices
-                gk, ua = db.get_config()
-                if gk:
-                    account = make_funpay_account(gk, ua)
-                    sale, _ = find_funpay_sale(account, query, max_depth=5000)
-                    if sale:
-                        product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
-                        sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
-                        order_id = str(getattr(sale, "id", ""))
-                        existing_cost = orders_db.get_prime_cost(order_id)
-                        cost = _money(existing_cost) if existing_cost is not None else None
-                        profit = round((sell_price * 0.97) - cost, 2) if cost is not None else None
-                        found.append({
-                            "id": order_id,
-                            "game": _sale_game(sale),
-                            "product": product_name,
-                            "sell_price": sell_price,
-                            "date": str(getattr(sale, "date", getattr(sale, "created_at", ""))),
-                            "cost": cost,
-                            "profit": profit,
-                            "variants": get_auto_buy_prices(product_name, "", 0)[:4] if cost is None else [],
-                        })
-            except Exception:
-                pass
-        cards = found
+        if q.strip():
+            query = q.strip().lower()
+            query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
+            query = query.strip("/").lstrip("#").lower()
+            found = [c for c in cards if query in str(c["id"]).lower() or query in str(c.get("product", "")).lower()]
+            if not found:
+                try:
+                    from handlers.funpay_admin import make_funpay_account, find_funpay_sale, clean_price, get_auto_buy_prices
+                    gk, ua = db.get_config()
+                    if gk:
+                        account = make_funpay_account(gk, ua)
+                        sale, _ = find_funpay_sale(account, query, max_depth=5000)
+                        if sale:
+                            product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
+                            sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
+                            order_id = str(getattr(sale, "id", ""))
+                            existing_cost = orders_db.get_prime_cost(order_id)
+                            cost = _money(existing_cost) if existing_cost is not None else None
+                            profit = round((sell_price * 0.97) - cost, 2) if cost is not None else None
+                            found.append({
+                                "id": order_id,
+                                "game": _sale_game(sale),
+                                "product": product_name,
+                                "sell_price": sell_price,
+                                "date": str(getattr(sale, "date", getattr(sale, "created_at", ""))),
+                                "cost": cost,
+                                "profit": profit,
+                                "variants": get_auto_buy_prices(product_name, "", 0)[:4] if cost is None else [],
+                            })
+                except Exception:
+                    pass
+            cards = found
+    except Exception as exc:
+        error = f"Ошибка загрузки заказов: {exc}"
     return templates.TemplateResponse(
         request=request,
         name="orders.html",
@@ -834,72 +841,8 @@ async def orders_page(
             "q": q,
             "stats": _all_profit_stats(_load_admin_profits()),
             "total_loaded": len(cards),
-            "scanned": scanned,
-            "max_offset": max_offset,
         },
     )
-
-
-@app.post("/orders/load-more")
-async def orders_load_more(request: Request, user=Depends(require_session)):
-    from handlers.funpay_admin import make_funpay_account, fetch_funpay_sales_window, clean_price, extract_order_amount, get_auto_buy_prices
-    form = await request.form()
-    offset = int(str(form.get("offset", "0")))
-    mode = str(form.get("mode", "all"))
-    max_offset = int(str(form.get("max_offset", "5000")))
-
-    gk, ua = db.get_config()
-    if not gk:
-        return JSONResponse({"ok": False, "error": "Golden Key не настроен"})
-
-    account = make_funpay_account(gk, ua)
-    sales = fetch_funpay_sales_window(account, offset=offset, limit=500)
-
-    result = []
-    for sale in sales:
-        order_id = str(getattr(sale, "id", ""))
-        if not order_id:
-            continue
-        status_text = str(getattr(sale, "status", "") or "")
-        if "refund" in status_text.lower():
-            continue
-        sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
-        product_name = getattr(sale, "description", getattr(sale, "product_name", "Без названия"))
-        order_date = str(getattr(sale, "date", getattr(sale, "created_at", "")))
-        order_amount = extract_order_amount(product_name)
-        order_game = _sale_game(sale)
-        cost = orders_db.get_prime_cost(order_id)
-        if mode == "unfilled" and cost is not None:
-            continue
-        if mode == "filled" and cost is None:
-            continue
-        sell_override = orders_db.get_sell_price(order_id) if hasattr(orders_db, "get_sell_price") else None
-        if sell_override is not None:
-            sell_price = _money(sell_override)
-        profit = (sell_price * 0.97) - _money(cost) if cost is not None else None
-        variants = get_auto_buy_prices(product_name, order_game, order_amount)[:4] if cost is None else []
-        result.append({
-            "id": order_id,
-            "game": order_game,
-            "product": product_name,
-            "sell_price": sell_price,
-            "cost": _money(cost) if cost is not None else None,
-            "profit": round(profit, 2) if profit is not None else None,
-            "date": order_date,
-            "variants": variants,
-        })
-        if len(result) >= 500:
-            break
-
-    next_offset = offset + len(result)
-    has_more = len(sales) >= 500 and next_offset < max_offset
-
-    return JSONResponse({
-        "ok": True,
-        "cards": result,
-        "has_more": has_more,
-        "next_offset": next_offset,
-    })
 
 
 @app.get("/calc")
@@ -1122,12 +1065,14 @@ async def settings_page(request: Request, user=Depends(require_session)):
     sessions = web_db.list_sessions()
     revoked_count = sum(1 for s in sessions if s[4])
     settings = get_user_settings(ADMIN_ID)
+    accounts = web_db.list_accounts() if hasattr(web_db, "list_accounts") else []
     return templates.TemplateResponse(
         request=request,
         name="settings.html",
         context={
             "user": user,
             "sessions": sessions,
+            "accounts": accounts,
             "current_session": user["session_id"],
             "login_username": _login_pair()[0],
             "revoked_count": revoked_count,
@@ -1145,6 +1090,34 @@ async def settings_update_bot(request: Request, user=Depends(require_session)):
     time_val = str(form.get("admin_report_time", "23:59")).strip()
     if time_val:
         update_setting(ADMIN_ID, "admin_report_time", time_val)
+    return redirect_to("/settings")
+
+
+@app.post("/settings/accounts/add")
+async def settings_add_account(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    password = str(form.get("password", "")).strip()
+    if username and password and hasattr(web_db, "add_account"):
+        web_db.add_account(username, password)
+    return redirect_to("/settings")
+
+
+@app.post("/settings/accounts/toggle")
+async def settings_toggle_account(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    if username and hasattr(web_db, "toggle_account"):
+        web_db.toggle_account(username)
+    return redirect_to("/settings")
+
+
+@app.post("/settings/accounts/delete")
+async def settings_delete_account(request: Request, user=Depends(require_session)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    if username and hasattr(web_db, "delete_account"):
+        web_db.delete_account(username)
     return redirect_to("/settings")
 
 
