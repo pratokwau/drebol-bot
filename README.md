@@ -1,36 +1,46 @@
-# Drebolbot Web
+# Drebol-bot
 
-Панель управления FunPay автоматизацией. Веб-интерфейс для управления заказами, ценами, демпингом и прибылью.
+Панель управления FunPay — веб-дашборд для автоматизации заказов, ценообразования, демпинга и учёта прибыли.
 
-Репозиторий: https://github.com/pratokwau/drebol-bot.git
+**Стек:** Python 3.12 · FastAPI · Jinja2 · SQLite · aiogram 3.x
 
-## Установка с нуля
+## Возможности
 
-### 1. Подготовка сервера
+| Раздел | Описание |
+|--------|----------|
+| **Дашборд** | Статистика прибыли за день / неделю / месяц, быстрые переходы |
+| **Заказы** | Карточки FunPay с поиском по ID/ссылке, ввод себестоимости, AI-автоподбор цен |
+| **Хвосты** | Незаполненные заказы по периодам — контроль "хвостов" |
+| **Калькулятор** | Расчёт прибыли FunPay и PlayerOK с учётом комиссий |
+| **Мин лоты** | Управление играми, товарами, привязка лотов, ставки СБП, AI-автолинк |
+| **Демпинг** | Файл `price_optimizer_lots.json` для Cardinal, выборочная отправка по кэшбеку |
+| **Сертификаты** | Подарочные сертификаты — цены, коэффициенты, интеграция с Cardinal |
+| **Прибыль** | Журнал с фильтрацией, сортировкой, пагинацией |
+| **API Ключи** | FunPay Golden Key, User-Agent, Groq, OpenRouter |
+| **Настройки** | Ежедневный отчёт, управление сессиями и аккаунтами |
+| **Уведомления** | Автоматические отчёты, мониторинг СБП-ставок, контроль хвостов |
 
-Нужен сервер Ubuntu 22.04+ с root-доступом и доменом, направленным на IP сервера (A-запись).
+## Установка
+
+### 1. Подготовка сервера (Ubuntu 22.04+)
 
 ```bash
 apt update && apt upgrade -y
 apt install -y python3 python3-venv python3-pip nginx certbot python3-certbot-nginx git
 ```
 
-### 2. Клонировать репозиторий
+### 2. Клонировать и настроить
 
 ```bash
 git clone https://github.com/pratokwau/drebol-bot.git /root/drebol-bot
 cd /root/drebol-bot
-```
-
-### 3. Создать виртуальное окружение и зависимости
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+mkdir -p data
 ```
 
-### 4. Настроить переменные окружения
+### 3. Переменные окружения
 
 ```bash
 cat > .env << 'EOF'
@@ -40,26 +50,20 @@ OPENROUTER_API_KEY=sk-or-...
 EOF
 ```
 
-- `WEB_USERNAME` — логин для входа на сайт
-- `WEB_PASSWORD` — пароль для входа
-- `OPENROUTER_API_KEY` — ключ OpenRouter для AI-распознавания фото (опционально)
+| Переменная | Описание |
+|-----------|----------|
+| `WEB_USERNAME` | Логин для входа на сайт |
+| `WEB_PASSWORD` | Пароль для входа |
+| `OPENROUTER_API_KEY` | Ключ OpenRouter для AI-сопоставления лотов (опционально) |
 
-### 5. Создать папку данных
-
-```bash
-mkdir -p data
-```
-
-### 6. Проверить запуск
+### 4. Проверить запуск
 
 ```bash
 source .venv/bin/activate
-.venv/bin/python -m uvicorn webapp.app:app --host 127.0.0.1 --port 8090
+python -m uvicorn webapp.app:app --host 127.0.0.1 --port 8090
 ```
 
-Если запустилось без ошибок — Ctrl+C и дальше.
-
-### 7. Настроить systemd-сервис
+### 5. Systemd-сервис
 
 ```bash
 cat > /etc/systemd/system/drebol-bot.service << 'EOF'
@@ -83,10 +87,9 @@ EOF
 systemctl daemon-reload
 systemctl enable drebol-bot
 systemctl start drebol-bot
-systemctl status drebol-bot
 ```
 
-### 8. Настроить nginx
+### 6. Nginx + SSL
 
 ```bash
 cat > /etc/nginx/sites-available/drebol-bot << 'EOF'
@@ -106,54 +109,20 @@ EOF
 ln -sf /etc/nginx/sites-available/drebol-bot /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
-```
-
-### 9. Получить SSL-сертификат (HTTPS)
-
-```bash
 certbot --nginx -d ваш-домен.ru --non-interactive --agree-tos --email ваш@email.ru
 ```
 
-Certbot автоматически:
-- Получит сертификат от Let's Encrypt
-- Обновит nginx-конфиг для HTTPS
-- Настроит автоматическое продление
-
-Проверить:
-```bash
-certbot certificates
-```
-
-### 10. Открыть в браузере
-
-```
-https://ваш-домен.ru
-```
-
-Логин и пароль из `.env`.
-
----
-
-## Автозапуск при перезагрузке сервера
+## Обслуживание
 
 ```bash
-systemctl enable drebol-bot
-```
+# Обновление
+cd /root/drebol-bot && git pull && systemctl restart drebol-bot
 
-Уже сделано на шаге 7.
-
-## Обновление
-
-```bash
-cd /root/drebol-bot
-git pull
-systemctl restart drebol-bot
-```
-
-## Просмотр логов
-
-```bash
+# Логи
 journalctl -u drebol-bot -f
+
+# Статус
+systemctl status drebol-bot
 ```
 
 ## Структура проекта
@@ -161,56 +130,78 @@ journalctl -u drebol-bot -f
 ```
 drebol-bot/
 ├── webapp/
-│   ├── app.py              # FastAPI приложение (роуты)
-│   ├── static/app.css      # Стили (тёмная тема)
-│   └── templates/          # HTML шаблоны
-│       ├── base.html       # Базовый шаблон (sidebar)
-│       ├── login.html      # Страница входа
-│       ├── dashboard.html  # Дашборд
-│       ├── orders.html     # Заказы
-│       ├── tasks.html      # Хвосты
-│       ├── calc.html       # Калькуляторы
-│       ├── minprice.html   # Минпрайс (игры)
-│       ├── minprice_game.html  # Минпрайс (товары)
-│       ├── demping.html    # Демпинг
-│       ├── certs.html      # Сертификаты (игры)
-│       ├── certs_game.html # Сертификаты (товары)
-│       ├── profits.html    # Журнал прибыли
-│       └── settings.html   # Настройки
+│   ├── app.py                  # FastAPI — точка входа, фоновые задачи
+│   ├── routers/                # Модульные роутеры
+│   │   ├── shared.py           # Общие утилиты, аутентификация, шаблоны
+│   │   ├── auth.py             # Вход / выход
+│   │   ├── dashboard.py        # Главная страница
+│   │   ├── orders.py           # Заказы FunPay
+│   │   ├── profits.py          # Журнал прибыли
+│   │   ├── minprice.py         # Минимальные цены и лоты
+│   │   ├── demping.py          # Демпинг Cardinal
+│   │   ├── certs.py            # Сертификаты
+│   │   ├── keys.py             # API-ключи
+│   │   ├── settings.py         # Настройки
+│   │   ├── notifications.py    # Уведомления
+│   │   └── tasks.py            # Хвосты (незаполненные заказы)
+│   ├── static/
+│   │   └── app.css             # Дизайн-система (тёмная тема, адаптив)
+│   └── templates/              # Jinja2-шаблоны
+│       ├── base.html           # Базовый layout с sidebar
+│       ├── login.html
+│       ├── dashboard.html
+│       ├── orders.html
+│       ├── profits.html
+│       ├── minprice.html
+│       ├── minprice_game.html
+│       ├── minprice_import.html
+│       ├── demping.html
+│       ├── demping_selective.html
+│       ├── certs.html
+│       ├── certs_game.html
+│       ├── certs_import.html
+│       ├── calc.html
+│       ├── tasks.html
+│       ├── notifications.html
+│       ├── keys.html
+│       └── settings.html
 ├── handlers/
-│   ├── funpay_admin.py     # FunPay API
-│   ├── minprice.py         # Минимальные цены
-│   ├── demping.py          # Демпинг Cardinal
-│   ├── certificates.py     # Сертификаты
-│   ├── settings.py         # Настройки бота
-│   ├── utils.py            # Утилиты
-│   ├── ai_runtime.py       # AI runtime
-│   ├── ai_settings.py      # AI настройки
-│   └── inventory.py        # Инвентарь
-├── database.py             # База данных
-├── config.py               # Конфигурация
-├── base_store.py           # Хранилище
-├── .env                    # Переменные окружения
-└── data/                   # Данные (создаётся автоматически)
+│   ├── funpay_admin.py         # FunPay API (скрейпинг, заказы)
+│   ├── minprice.py             # Минимальные цены, СБП-ставки
+│   ├── demping.py              # Демпинг — генерация файла Cardinal
+│   ├── certificates.py         # Подарочные сертификаты
+│   ├── settings.py             # Пользовательские настройки
+│   ├── ai_runtime.py           # AI-сервис (Groq, OpenRouter)
+│   ├── ai_settings.py          # AI-ключи
+│   ├── inventory.py            # Инвентарь
+│   └── utils.py                # Утилиты
+├── FunPayAPI/                  # Обёртка FunPay API
+├── database.py                 # SQLite базы данных
+├── config.py                   # Конфигурация (ADMIN_ID)
+├── base_store.py               # Хранилище файлов
+├── requirements.txt
+├── .env                        # Секреты (не в git)
+└── data/                       # Данные (создаётся автоматически)
     ├── minprice.json
     ├── demping.json
     ├── demping_settings.json
     ├── certificates.json
     ├── certificates_demping.json
+    ├── notifications.json
+    ├── profits.json
     ├── ordersfp.db
     ├── webauth.db
-    ├── funpayacc.db
-    └── profits.json
+    └── funpayacc.db
 ```
 
-## Возможности
+## Интеграции
 
-- **Дашборд** — статистика прибыли, быстрые переходы
-- **Заказы** — карточки FunPay, поиск по ID/ссылке, ввод себестоимости, автоподбор
-- **Хвосты** — незаполненные заказы по периодам
-- **Расчёт** — калькуляторы прибыли FunPay и PlayerOK
-- **Минпрайс** — управление играми, товарами, ставками СБП
-- **Демпинг** — файл price_optimizer_lots.json, отправка в Cardinal
-- **Сертификаты** — управление сертификатами, отправка в Cardinal
-- **Прибыль** — журнал с фильтрацией по периодам (день/неделя/месяц/всё)
-- **Настройки** — параметры уведомлений, админ-отчёт, управление сессиями
+- **FunPay** — заказы, профиль, лоты через Golden Key + скрейпинг
+- **FunPayCardinal** — price_optimizer_lots.json для автодемпинга
+- **СБП** — автоматическое обнаружение ставок кэшбека с FunPay
+- **AI** — сопоставление лотов с товарами через Groq / OpenRouter
+- **Telegram** — aiogram 3.x бот (отдельный модуль)
+
+## Лицензия
+
+Приватный проект.

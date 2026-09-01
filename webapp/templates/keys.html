@@ -1,73 +1,98 @@
 {% extends "base.html" %}
-{% block title %}Ключи · Drebol-bot{% endblock %}
+{% block title %}Ключи API · Drebolbot{% endblock %}
 {% block content %}
 <header class="page-head">
-  <h1>Ключи и API</h1>
-  <p>FunPay, Groq, OpenRouter.</p>
+  <h1>Ключи API</h1>
+  <p>FunPay, Groq, OpenRouter</p>
 </header>
 
-<section class="panel">
-  <h2>FunPay</h2>
-  <form method="post" action="/keys/funpay" class="form-grid">
+<section class="panel animate-in stagger-1">
+  <h2>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+    FunPay
+  </h2>
+  <form method="post" action="/keys/funpay" class="form-grid" style="max-width:700px;">
     <label>Golden Key
       <div style="position:relative;">
-        <input name="gk" id="gk-input" type="password" value="{{ gk }}" autocomplete="off" style="padding-right:40px;">
-        <button type="button" onclick="toggleVis('gk-input')" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <input name="gk" id="gk-input" type="password" value="{{ gk }}" autocomplete="off" style="padding-right:38px;">
+        <button type="button" onclick="toggleVis('gk-input')" class="vis-toggle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </label>
     <label>User-Agent
       <div style="position:relative;">
-        <input name="ua" id="ua-input" type="password" value="{{ ua }}" autocomplete="off" style="padding-right:40px;">
-        <button type="button" onclick="toggleVis('ua-input')" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <input name="ua" id="ua-input" type="password" value="{{ ua }}" autocomplete="off" style="padding-right:38px;">
+        <button type="button" onclick="toggleVis('ua-input')" class="vis-toggle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </label>
     <div style="grid-column:1/-1;">
-      <button type="submit">Сохранить FunPay</button>
+      <button type="submit">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        Сохранить FunPay
+      </button>
     </div>
   </form>
 </section>
 
-<section class="panel">
-  <h2>Groq</h2>
-  <form method="post" action="/keys/groq" class="form-grid">
+<section class="panel animate-in stagger-2">
+  <h2>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+    Groq
+  </h2>
+  <form method="post" action="/keys/groq" style="max-width:500px;">
     <label>API Key
       <div style="position:relative;">
-        <input name="groq_key" id="groq-input" type="password" value="{{ groq_key }}" autocomplete="off" placeholder="gsk_..." style="padding-right:40px;">
-        <button type="button" onclick="toggleVis('groq-input')" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <input name="groq_key" id="groq-input" type="password" value="{{ groq_key }}" autocomplete="off" placeholder="gsk_..." style="padding-right:38px;">
+        <button type="button" onclick="toggleVis('groq-input')" class="vis-toggle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </label>
-    <div style="grid-column:1/-1;">
-      <button type="submit">Сохранить Groq</button>
-    </div>
+    <button type="submit" class="mt-12">Сохранить Groq</button>
   </form>
 </section>
 
-<section class="panel">
-  <h2>OpenRouter</h2>
-  <form method="post" action="/keys/openrouter" class="form-grid">
+<section class="panel animate-in stagger-3">
+  <h2>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+    OpenRouter
+  </h2>
+  <form method="post" action="/keys/openrouter" style="max-width:500px;">
     <label>API Key
       <div style="position:relative;">
-        <input name="openrouter_key" id="or-input" type="password" value="{{ openrouter_key }}" autocomplete="off" placeholder="sk-or-..." style="padding-right:40px;">
-        <button type="button" onclick="toggleVis('or-input')" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <input name="openrouter_key" id="or-input" type="password" value="{{ openrouter_key }}" autocomplete="off" placeholder="sk-or-..." style="padding-right:38px;">
+        <button type="button" onclick="toggleVis('or-input')" class="vis-toggle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </label>
-    <div style="grid-column:1/-1;">
-      <button type="submit">Сохранить OpenRouter</button>
-    </div>
+    <button type="submit" class="mt-12">Сохранить OpenRouter</button>
   </form>
 </section>
 
+<style>
+.vis-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 4px;
+}
+.vis-toggle:hover { color: var(--ink); box-shadow: none; filter: none; transform: translateY(-50%); }
+</style>
+{% endblock %}
+
+{% block scripts %}
 <script>
 function toggleVis(id) {
-  const el = document.getElementById(id);
+  var el = document.getElementById(id);
   el.type = el.type === 'password' ? 'text' : 'password';
 }
 </script>

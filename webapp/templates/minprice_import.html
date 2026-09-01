@@ -1,43 +1,43 @@
 {% extends "base.html" %}
-{% block title %}Импорт игр · Drebol-bot{% endblock %}
+{% block title %}Импорт игр · Мин лоты{% endblock %}
 {% block content %}
 <header class="page-head">
-  <h1>Импорт игр с FunPay</h1>
-  <p>Выберите какие игры добавить в мин лоты.</p>
+  <h1>Импорт игр</h1>
+  <p>Выберите игры из профиля FunPay для добавления в мин лоты</p>
 </header>
 
 {% if error %}
-<section class="alert">{{ error }}</section>
+<div class="alert error">{{ error }}</div>
 {% endif %}
 
 {% if games %}
-<section class="panel">
+<section class="panel animate-in">
   <form method="post" action="/minprice/import">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <span style="color:var(--muted);font-size:14px;">Найдено {{ games|length }} игр в профиле</span>
-      <div style="display:flex;gap:8px;">
-        <button type="button" class="ghost" onclick="document.querySelectorAll('.import-cb').forEach(c=>c.checked=true)" style="font-size:13px;padding:6px 14px;">Выбрать все</button>
-        <button type="button" class="ghost" onclick="document.querySelectorAll('.import-cb').forEach(c=>c.checked=false)" style="font-size:13px;padding:6px 14px;">Снять все</button>
+    <div class="flex justify-between items-center flex-wrap gap-8 mb-16">
+      <span class="text-muted" style="font-size:14px;">Найдено {{ games|length }} игр в профиле</span>
+      <div class="flex items-center gap-8">
+        <button type="button" class="ghost sm" onclick="document.querySelectorAll('.import-cb').forEach(function(c){c.checked=true})">Выбрать все</button>
+        <button type="button" class="ghost sm" onclick="document.querySelectorAll('.import-cb').forEach(function(c){c.checked=false})">Снять все</button>
       </div>
     </div>
-    <div style="display:grid;gap:8px;max-height:60vh;overflow-y:auto;">
+    <div style="display:grid;gap:6px;max-height:60vh;overflow-y:auto;">
       {% for g in games %}
-      <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all var(--transition);">
+      <label class="flex items-center gap-12 animate-in" style="padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;animation-delay:{{ loop.index0 * 0.02 }}s;">
         {% if g.name in existing %}
         <input type="checkbox" name="games" value="{{ g.name }}" disabled style="width:auto;accent-color:var(--green);">
-        <span style="color:var(--ink-2);">{{ g.name }}</span>
+        <span class="text-muted">{{ g.name }}</span>
         <span class="pill ok" style="margin-left:auto;">уже есть</span>
         {% else %}
         <input type="checkbox" name="games" value="{{ g.name }}" class="import-cb" style="width:auto;accent-color:var(--accent);">
-        <span style="color:var(--ink);">{{ g.name }}</span>
-        <span style="margin-left:auto;color:var(--muted);font-size:12px;">#{{ g.node_id }}</span>
+        <span>{{ g.name }}</span>
+        <span class="text-muted" style="margin-left:auto;font-size:12px;">#{{ g.node_id }}</span>
         {% endif %}
       </label>
       {% endfor %}
     </div>
-    <div style="margin-top:20px;display:flex;gap:10px;">
+    <div class="flex items-center gap-8 mt-16">
       <button type="submit">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Добавить выбранные
       </button>
       <a href="/minprice" class="btn ghost" style="text-decoration:none;">Назад</a>
@@ -45,9 +45,10 @@
   </form>
 </section>
 {% else %}
-<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
+<div class="empty-state">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
   <p>{% if error %}{{ error }}{% else %}Игры не найдены в профиле FunPay.{% endif %}</p>
-  <a href="/minprice" class="btn ghost" style="text-decoration:none;margin-top:16px;">Назад</a>
-</section>
+  <a href="/minprice" class="btn ghost" style="text-decoration:none;margin-top:12px;">Назад</a>
+</div>
 {% endif %}
 {% endblock %}

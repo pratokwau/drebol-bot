@@ -3,28 +3,34 @@
 {% block content %}
 <header class="page-head">
   <h1>{{ game_name }}</h1>
-  <p>Сертификаты, цены и лоты. Всего товаров: {{ items|length }}.</p>
+  <p>Сертификаты, цены и лоты. Всего: {{ items|length }}.</p>
 </header>
 
 <section class="toolbar">
-  <div class="inline-form" style="flex-wrap:wrap;">
-    <a href="/certs" class="btn ghost" style="text-decoration:none;">← Назад</a>
-    <form method="post" action="/certs/game/{{ game_hash }}/rate" style="display:flex;gap:8px;align-items:center;">
-      <label style="margin:0;font-size:13px;color:var(--muted);">Коэф:</label>
-      <input name="rate" value="{{ rate or '' }}" placeholder="1.12" style="max-width:120px;" step="0.01">
-      <button type="submit" style="padding:6px 14px;font-size:13px;">OK</button>
+  <div class="inline-form flex-wrap">
+    <a href="/certs" class="btn ghost sm" style="text-decoration:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      Назад
+    </a>
+    <form method="post" action="/certs/game/{{ game_hash }}/rate" class="flex items-center gap-8" style="margin:0;">
+      <span class="text-muted" style="font-size:13px;">Коэф:</span>
+      <input name="rate" value="{{ rate or '' }}" placeholder="1.12" style="max-width:110px;" step="0.01">
+      <button type="submit" class="sm">OK</button>
     </form>
-    <button onclick="updateRate()" id="btn-update-rate" style="padding:6px 14px;font-size:13px;background:var(--accent);">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+    <button onclick="updateRate()" id="btn-update-rate" class="sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
       Обновить коэф
     </button>
     <span id="rate-result" style="font-size:13px;"></span>
   </div>
 </section>
 
-<section class="panel">
-  <h2>Добавить сертификат</h2>
-  <form method="post" action="/certs/game/{{ game_hash }}/add" class="inline-form" style="flex-wrap:wrap;">
+<section class="panel mb-12">
+  <h2>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Добавить сертификат
+  </h2>
+  <form method="post" action="/certs/game/{{ game_hash }}/add" class="inline-form flex-wrap">
     <input name="item_name" placeholder="Название" style="min-width:200px;" required>
     <input name="cost" placeholder="Закуп" style="max-width:120px;" step="0.01">
     <input name="offer_id" placeholder="Offer ID" style="max-width:120px;">
@@ -37,65 +43,68 @@
   <h2>Сертификаты ({{ items|length }})</h2>
   {% for item_id, info in items.items() %}
   <div style="border-bottom:1px solid var(--border);padding:14px 0;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <span style="font-weight:600;color:var(--ink);font-size:15px;">{{ info.name or item_id }}</span>
-        <span style="color:var(--muted);font-size:13px;">Закуп: <b style="color:var(--ink);">{{ "%.2f"|format(info.cost or 0) }} ₽</b></span>
+    <div class="flex justify-between items-center flex-wrap gap-8">
+      <div class="flex items-center flex-wrap gap-8">
+        <span class="fw-600" style="font-size:14px;">{{ info.name or item_id }}</span>
+        <span class="text-muted" style="font-size:12px;">Закуп: <b style="color:var(--ink);">{{ "%.2f"|format(info.cost or 0) }} ₽</b></span>
         {% set mp = (info.min_price if info.min_price else ((info.cost or 0) + 15) / (1 - 0.05)) %}
         {% if mp > 0 %}
-        <span style="color:var(--muted);font-size:13px;">Мин: <b style="color:var(--accent);">{{ "%.2f"|format(mp) }} ₽</b></span>
+        <span class="text-muted" style="font-size:12px;">Мин: <b class="text-accent">{{ "%.2f"|format(mp) }} ₽</b></span>
         {% endif %}
         {% if rate > 0 and mp > 0 %}
-        <span style="color:var(--muted);font-size:13px;">Сайт: <b style="color:var(--green);">{{ "%.2f"|format(mp * rate) }} ₽</b></span>
+        <span class="text-muted" style="font-size:12px;">Сайт: <b class="text-green">{{ "%.2f"|format(mp * rate) }} ₽</b></span>
         {% endif %}
         {% if info.offer_id %}
-        <a href="https://funpay.com/lots/offer?id={{ info.offer_id }}" target="_blank" style="color:var(--accent);font-size:12px;">🔗 #{{ info.offer_id }}</a>
+        <a href="https://funpay.com/lots/offer?id={{ info.offer_id }}" target="_blank" class="text-accent" style="font-size:12px;">#{{ info.offer_id }}</a>
         {% endif %}
       </div>
       <form method="post" action="/certs/game/{{ game_hash }}/delete" style="display:inline;" onsubmit="return confirm('Удалить?')">
         <input type="hidden" name="item_id" value="{{ item_id }}">
-        <button class="danger" type="submit" style="padding:3px 8px;font-size:11px;">✕</button>
+        <button class="danger xs" type="submit">✕</button>
       </form>
     </div>
-    <details style="margin-top:8px;">
-      <summary style="cursor:pointer;font-size:12px;color:var(--muted);">✏️ Редактировать</summary>
-      <form method="post" action="/certs/game/{{ game_hash }}/edit/{{ item_id }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
-        <input name="item_name" value="{{ info.name }}" style="max-width:180px;font-size:13px;">
-        <input name="cost" value="{{ "%.2f"|format(info.cost or 0) }}" style="max-width:120px;font-size:13px;" step="0.01">
-        <input name="offer_id" value="{{ info.offer_id or '' }}" placeholder="Offer ID" style="max-width:120px;font-size:13px;">
-        <button type="submit" style="padding:4px 12px;font-size:12px;">Сохранить</button>
+    <details class="mt-8">
+      <summary style="cursor:pointer;font-size:12px;color:var(--muted);">Редактировать</summary>
+      <form method="post" action="/certs/game/{{ game_hash }}/edit/{{ item_id }}" class="flex flex-wrap items-center gap-8 mt-8">
+        <input name="item_name" value="{{ info.name }}" style="max-width:180px;" class="sm">
+        <input name="cost" value="{{ "%.2f"|format(info.cost or 0) }}" style="max-width:110px;" step="0.01" class="sm">
+        <input name="offer_id" value="{{ info.offer_id or '' }}" placeholder="Offer ID" style="max-width:120px;" class="sm">
+        <button type="submit" class="sm">Сохранить</button>
       </form>
     </details>
   </div>
   {% endfor %}
 </section>
 {% else %}
-<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
-  <p>Сертификатов пока нет. Добавьте первый!</p>
-</section>
+  <div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <p>Сертификатов пока нет. Добавьте первый!</p>
+  </div>
 {% endif %}
+{% endblock %}
 
+{% block scripts %}
 <script>
 async function updateRate() {
-  const btn = document.getElementById('btn-update-rate');
-  const res = document.getElementById('rate-result');
+  var btn = document.getElementById('btn-update-rate');
+  var res = document.getElementById('rate-result');
   btn.disabled = true;
-  btn.textContent = '⏳ Проверяю...';
-  res.innerHTML = '<span style="color:var(--muted);">Получаю коэффициент с FunPay...</span>';
+  btn.textContent = 'Проверяю...';
+  res.innerHTML = '<span class="text-muted">Получаю коэффициент...</span>';
   try {
-    const r = await fetch('/certs/game/{{ game_hash }}/update-rate', { method: 'POST', headers: { 'x-requested-with': 'fetch' } });
-    const data = await r.json();
+    var r = await fetch('/certs/game/{{ game_hash }}/update-rate', { method: 'POST', headers: { 'x-requested-with': 'fetch' } });
+    var data = await r.json();
     if (data.ok) {
-      res.innerHTML = '<span style="color:' + (data.changed ? 'var(--green)' : 'var(--muted)') + ';">' + data.text + '</span>';
-      if (data.changed) setTimeout(() => location.reload(), 1500);
+      res.innerHTML = '<span class="' + (data.changed ? 'text-green' : 'text-muted') + '">' + data.text + '</span>';
+      if (data.changed) setTimeout(function() { location.reload(); }, 1500);
     } else {
-      res.innerHTML = '<span style="color:var(--red);">❌ ' + data.text + '</span>';
+      res.innerHTML = '<span class="text-red">' + data.text + '</span>';
     }
   } catch (e) {
-    res.innerHTML = '<span style="color:var(--red);">❌ ' + e.message + '</span>';
+    res.innerHTML = '<span class="text-red">' + e.message + '</span>';
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg> Обновить коэф';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Обновить коэф';
   }
 }
 </script>

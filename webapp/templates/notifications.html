@@ -1,29 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Уведомления · Drebol-bot{% endblock %}
+{% block title %}Уведомления · Drebolbot{% endblock %}
 {% block content %}
 <header class="page-head">
-  <h1>Уведомления</h1>
-  <p>Отчёты, хвосты и события от бота.</p>
+  <div class="flex justify-between items-center flex-wrap gap-12">
+    <div>
+      <h1>Уведомления</h1>
+      <p>Отчёты, хвосты и события</p>
+    </div>
+    {% if notifications %}
+    <form method="post" action="/notifications/clear">
+      <button class="danger sm" type="submit">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Очистить все
+      </button>
+    </form>
+    {% endif %}
+  </div>
 </header>
 
 {% if notifications %}
-{% for n in notifications %}
-<section class="panel" style="margin-bottom:8px;border-left:3px solid {{ 'var(--yellow)' if n.type == 'warning' else 'var(--green)' if n.type == 'success' else 'var(--accent)' }};{{ 'opacity:0.6;' if n.read else '' }}">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-    <div style="flex:1;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">
-        {{ n.time }}
-        {% if not n.read %}<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:6px;"></span>{% endif %}
-      </div>
-      <div style="color:var(--ink);white-space:pre-line;">{{ n.text }}</div>
-    </div>
+<section class="panel">
+  {% for n in notifications %}
+  <div class="notif-item animate-in" style="animation-delay:{{ loop.index0 * 0.03 }}s;border-left:3px solid {{ 'var(--yellow)' if n.type == 'warning' else 'var(--green)' if n.type == 'success' else 'var(--accent)' }};padding-left:16px;{{ 'opacity:0.5;' if n.read }}">
+    <span class="notif-time">{{ n.time }}</span>
+    <div style="flex:1;color:var(--ink);white-space:pre-line;font-size:13px;">{{ n.text }}</div>
   </div>
+  {% endfor %}
 </section>
-{% endfor %}
 {% else %}
-<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;margin-bottom:12px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-  <br>Уведомлений нет.
-</section>
+  <div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <p>Уведомлений нет</p>
+  </div>
 {% endif %}
 {% endblock %}

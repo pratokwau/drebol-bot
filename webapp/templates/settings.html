@@ -3,166 +3,156 @@
 {% block content %}
 <header class="page-head">
   <h1>Настройки</h1>
-  <p>Управление сессиями и параметрами бота.</p>
+  <p>Управление сессиями и параметрами бота</p>
 </header>
 
-<section class="panel">
+<section class="panel animate-in stagger-1">
   <h2>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     Обновление
   </h2>
-  <p style="color:var(--muted);font-size:14px;margin-bottom:12px;">Обновить код с GitHub и перезапустить.</p>
-  <button onclick="doUpdate()" id="update-btn" style="background:var(--accent);">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+  <p class="text-muted mb-12" style="font-size:13px;">Обновить код с GitHub и перезапустить сервис.</p>
+  <button onclick="doUpdate()" id="update-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     Обновить с GitHub
   </button>
-  <div id="update-result" style="margin-top:12px;font-size:13px;"></div>
+  <div id="update-result" class="mt-12" style="font-size:13px;"></div>
 </section>
 
-<section class="panel">
+<section class="panel animate-in stagger-2">
   <h2>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     Настройки бота
   </h2>
-  <form method="post" action="/settings/update-bot" style="display:grid;gap:16px;max-width:500px;">
-    <label style="display:flex;align-items:center;gap:12px;cursor:pointer;">
-      <input type="checkbox" name="restart_notify" value="1" {{ "checked" if settings.restart_notify else "" }} style="width:auto;">
+  <form method="post" action="/settings/update-bot" class="flex flex-col gap-16" style="max-width:500px;">
+    <label class="inline">
+      <input type="checkbox" name="restart_notify" value="1" {{ "checked" if settings.restart_notify }}>
       Уведомление о перезагрузке бота
     </label>
-    <label style="display:flex;align-items:center;gap:12px;cursor:pointer;">
-      <input type="checkbox" name="admin_report_notify" value="1" {{ "checked" if settings.admin_report_notify else "" }} style="width:auto;">
-      Админ-отчёт
+    <label class="inline">
+      <input type="checkbox" name="admin_report_notify" value="1" {{ "checked" if settings.admin_report_notify }}>
+      Ежедневный админ-отчёт
     </label>
     <label>
       Время админ-отчёта
       <input name="admin_report_time" value="{{ settings.admin_report_time }}" placeholder="23:59" style="max-width:120px;">
     </label>
-    <button type="submit" style="justify-self:start;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+    <button type="submit" style="align-self:flex-start;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       Сохранить
     </button>
   </form>
 </section>
 
-<section class="panel">
+<section class="panel animate-in stagger-3">
   <h2>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-    Авторизация
-  </h2>
-  <p style="color:var(--ink-2);font-size:14px;">Текущий логин: <b style="color:var(--accent);">{{ login_username }}</b></p>
-</section>
-
-<section class="panel">
-  <h2>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
     Пользователи сайта
   </h2>
-  <p style="color:var(--muted);font-size:14px;margin-bottom:14px;">Добавляй отдельные логины для входа в веб-панель.</p>
-  <form method="post" action="/settings/accounts/add" class="form-grid" style="max-width:720px;">
-    <label>Логин
-      <input name="username" autocomplete="off" placeholder="manager1">
-    </label>
-    <label>Пароль
-      <input name="password" type="text" autocomplete="new-password" placeholder="Придумай пароль">
-    </label>
-    <button type="submit" style="align-self:end;">Добавить пользователя</button>
+  <p class="text-muted mb-12" style="font-size:13px;">Текущий логин: <span class="text-accent fw-600">{{ login_username }}</span></p>
+  <form method="post" action="/settings/accounts/add" class="form-grid mb-16" style="max-width:600px;">
+    <label>Логин <input name="username" autocomplete="off" placeholder="manager1"></label>
+    <label>Пароль <input name="password" type="text" autocomplete="new-password" placeholder="Придумай пароль"></label>
+    <button type="submit" style="align-self:end;">Добавить</button>
   </form>
 
-  <div style="margin-top:18px;overflow:auto;">
+  <div class="table-wrap">
     <table>
       <thead>
         <tr><th>Логин</th><th>Статус</th><th></th></tr>
       </thead>
       <tbody>
-        {% for account in accounts %}
-          <tr>
-            <td><b>{{ account.username }}</b></td>
-            <td>
-              {% if account.active %}
-                <span class="pill ok">активен</span>
-              {% else %}
-                <span class="pill warn">отключён</span>
-              {% endif %}
-            </td>
-            <td style="white-space:nowrap;">
-              <form method="post" action="/settings/accounts/toggle" style="display:inline;">
-                <input type="hidden" name="username" value="{{ account.username }}">
-                <button class="ghost" type="submit" style="padding:4px 10px;font-size:12px;">
-                  {{ "Отключить" if account.active else "Включить" }}
-                </button>
-              </form>
-              <form method="post" action="/settings/accounts/delete" style="display:inline;margin-left:6px;">
-                <input type="hidden" name="username" value="{{ account.username }}">
-                <button class="danger" type="submit" style="padding:4px 10px;font-size:12px;">Удалить</button>
-              </form>
-            </td>
-          </tr>
-        {% else %}
-          <tr><td colspan="3" style="color:var(--muted);">Пока нет дополнительных пользователей.</td></tr>
-        {% endfor %}
+      {% for account in accounts %}
+        <tr>
+          <td class="fw-600">{{ account.username }}</td>
+          <td>
+            {% if account.active %}
+              <span class="pill ok">активен</span>
+            {% else %}
+              <span class="pill warn">отключён</span>
+            {% endif %}
+          </td>
+          <td style="white-space:nowrap;">
+            <form method="post" action="/settings/accounts/toggle" style="display:inline;">
+              <input type="hidden" name="username" value="{{ account.username }}">
+              <button class="ghost xs" type="submit">{{ "Откл." if account.active else "Вкл." }}</button>
+            </form>
+            <form method="post" action="/settings/accounts/delete" style="display:inline;margin-left:4px;">
+              <input type="hidden" name="username" value="{{ account.username }}">
+              <button class="danger xs" type="submit">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-muted">Нет дополнительных пользователей</td></tr>
+      {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
 
-<section class="panel">
+<section class="panel animate-in stagger-4">
   <h2>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
     Сессии
   </h2>
   {% if revoked_count > 0 %}
-  <form method="post" action="/settings/revoke-all" style="margin-bottom:16px;">
-    <button class="danger" type="submit">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-      Удалить все отозванные ({{ revoked_count }})
+  <form method="post" action="/settings/revoke-all" class="mb-16">
+    <button class="danger sm" type="submit">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      Удалить отозванные ({{ revoked_count }})
     </button>
   </form>
   {% endif %}
-  <table>
-    <thead><tr><th>Пользователь</th><th>Создана</th><th>Активность</th><th>Статус</th><th></th></tr></thead>
-    <tbody>
-    {% for session_id, username, created_at, last_seen, revoked in sessions %}
-      <tr>
-        <td><b>{{ username }}</b></td>
-        <td style="color:var(--muted);font-size:13px;">{{ created_at }}</td>
-        <td style="color:var(--muted);font-size:13px;">{{ last_seen }}</td>
-        <td>
-          {% if revoked %}<span class="pill warn">отозвана</span>
-          {% else %}<span class="pill ok"><span class="status-dot on"></span>активна</span>{% endif %}
-        </td>
-        <td>
-          {% if not revoked %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Пользователь</th><th>Создана</th><th>Активность</th><th>Статус</th><th></th></tr></thead>
+      <tbody>
+      {% for session_id, username, created_at, last_seen, revoked in sessions %}
+        <tr>
+          <td class="fw-600">{{ username }}</td>
+          <td class="text-muted" style="font-size:12px;">{{ created_at }}</td>
+          <td class="text-muted" style="font-size:12px;">{{ last_seen }}</td>
+          <td>
+            {% if revoked %}<span class="pill warn">отозвана</span>
+            {% else %}<span class="pill ok"><span class="status-dot on"></span> активна</span>{% endif %}
+          </td>
+          <td>
+            {% if not revoked %}
             <form method="post" action="/settings/revoke" style="display:inline;">
               <input type="hidden" name="session_id" value="{{ session_id }}">
-              <button class="{{ 'danger' if session_id != current_session else 'ghost' }}" type="submit" style="padding:4px 10px;font-size:12px;">
-                {{ "Выйти" if session_id == current_session else "Удалить" }}
+              <button class="{{ 'danger' if session_id != current_session else 'ghost' }} xs" type="submit">
+                {{ "Выйти" if session_id == current_session else "Отозвать" }}
               </button>
             </form>
-          {% endif %}
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
+{% endblock %}
 
+{% block scripts %}
 <script>
 async function doUpdate() {
-  const btn = document.getElementById('update-btn');
-  const res = document.getElementById('update-result');
+  var btn = document.getElementById('update-btn');
+  var res = document.getElementById('update-result');
   btn.disabled = true;
   btn.textContent = 'Обновляю...';
-  res.innerHTML = '<span style="color:var(--muted);">Загрузка...</span>';
+  res.innerHTML = '<span class="text-muted">Загрузка...</span>';
   try {
-    const r = await fetch('/settings/update', { method: 'POST' });
-    const data = await r.json();
+    var r = await fetch('/settings/update', { method: 'POST' });
+    var data = await r.json();
     if (data.ok) {
-      res.innerHTML = '<span style="color:var(--green);">Обновлено: ' + (data.output || 'OK') + '</span>';
+      res.innerHTML = '<span class="text-green">Обновлено: ' + (data.output || 'OK') + '</span>';
     } else {
-      res.innerHTML = '<span style="color:var(--red);">Ошибка: ' + (data.error || 'unknown') + '</span>';
+      res.innerHTML = '<span class="text-red">Ошибка: ' + (data.error || 'unknown') + '</span>';
     }
   } catch (e) {
-    res.innerHTML = '<span style="color:var(--red);">Ошибка: ' + e.message + '</span>';
+    res.innerHTML = '<span class="text-red">Ошибка: ' + e.message + '</span>';
   } finally {
     btn.disabled = false;
     btn.textContent = 'Обновить с GitHub';

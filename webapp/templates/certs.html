@@ -3,74 +3,78 @@
 {% block content %}
 <header class="page-head">
   <h1>Сертификаты</h1>
-  <p>Управление подарочными сертификатами и отправка в Cardinal.</p>
+  <p>Управление подарочными сертификатами</p>
 </header>
 
-<section class="panel" style="margin-bottom:20px;">
-  <h2>Добавить игру</h2>
+<section class="panel mb-16">
+  <h2>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Добавить игру
+  </h2>
   <form method="post" action="/certs/add-game" class="inline-form">
-    <input name="game_name" placeholder="Название игры" style="min-width:300px;" required>
+    <input name="game_name" placeholder="Название игры" style="min-width:280px;" required>
     <button type="submit">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Добавить
     </button>
     <a href="/certs/import" class="btn ghost" style="text-decoration:none;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      Импорт с FunPay
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Импорт
     </a>
   </form>
 </section>
 
-<section class="grid" style="margin-bottom:20px;">
+<section class="grid cols-2 mb-16">
   <article class="card">
     <div class="card-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     </div>
     <span class="label">Игр</span>
-    <strong>{{ games|length }}</strong>
+    <span class="value">{{ games|length }}</span>
   </article>
   <article class="card">
-    <div class="card-icon purple">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+    <div class="card-icon indigo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
     </div>
     <span class="label">Лотов в демпинге</span>
-    <strong>{{ demping_count }}</strong>
+    <span class="value">{{ demping_count }}</span>
   </article>
 </section>
 
 {% if games %}
-{% for g in games %}
-<section class="panel" style="margin-bottom:12px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <a href="/certs/game/{{ g.hash }}" style="color:var(--accent);text-decoration:none;font-weight:700;font-size:16px;">{{ g.name }}</a>
-      <span style="color:var(--muted);font-size:13px;">
-        📦 {{ g.items_count }} товаров · 🔗 {{ g.linked_count }} с лотами
-        {% if g.rate > 0 %} · Коэф: <span style="color:var(--green);">{{ g.rate }}</span>{% endif %}
-      </span>
+  {% for g in games %}
+  <section class="panel animate-in" style="animation-delay:{{ loop.index0 * 0.04 }}s">
+    <div class="flex justify-between items-center flex-wrap gap-12">
+      <div class="flex items-center flex-wrap gap-12">
+        <a href="/certs/game/{{ g.hash }}" class="text-accent fw-700" style="font-size:15px;">{{ g.name }}</a>
+        <span class="text-muted" style="font-size:12px;">
+          {{ g.items_count }} товаров · {{ g.linked_count }} с лотами
+          {% if g.rate > 0 %} · Коэф: <span class="text-green">{{ g.rate }}</span>{% endif %}
+        </span>
+      </div>
+      <div class="flex items-center gap-6">
+        <form method="post" action="/certs/rename-game" class="inline-form" style="margin:0;">
+          <input type="hidden" name="old_name" value="{{ g.name }}">
+          <input name="new_name" placeholder="Новое название" style="width:150px;" class="sm" required>
+          <button type="submit" class="ghost sm" title="Переименовать">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </form>
+        <a href="/certs/game/{{ g.hash }}" class="btn ghost sm" style="text-decoration:none;">Открыть</a>
+        <form method="post" action="/certs/delete-game" style="display:inline;" onsubmit="return confirm('Удалить игру {{ g.name }}?')">
+          <input type="hidden" name="game_name" value="{{ g.name }}">
+          <button class="danger sm" type="submit">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </form>
+      </div>
     </div>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <form method="post" action="/certs/rename-game" class="inline-form" style="margin:0;">
-        <input type="hidden" name="old_name" value="{{ g.name }}">
-        <input name="new_name" placeholder="Новое название" style="width:160px;padding:6px 10px;font-size:12px;" required>
-        <button type="submit" class="ghost" style="padding:6px 10px;font-size:12px;" title="Переименовать">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-        </button>
-      </form>
-      <a href="/certs/game/{{ g.hash }}" class="btn ghost" style="padding:6px 14px;font-size:13px;text-decoration:none;">Открыть</a>
-      <form method="post" action="/certs/delete-game" style="display:inline;" onsubmit="return confirm('Удалить игру {{ g.name }}?')">
-        <input type="hidden" name="game_name" value="{{ g.name }}">
-        <button class="danger" type="submit" style="padding:6px 10px;font-size:12px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-        </button>
-      </form>
-    </div>
-  </div>
-</section>
-{% endfor %}
+  </section>
+  {% endfor %}
 {% else %}
-<section class="panel" style="text-align:center;padding:48px;color:var(--muted);">
-  <p>Сертификатов пока нет. Добавьте первую игру!</p>
-</section>
+  <div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>
+    <p>Сертификатов пока нет. Добавьте первую игру!</p>
+  </div>
 {% endif %}
 {% endblock %}
