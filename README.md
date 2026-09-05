@@ -17,113 +17,62 @@
 | **Сертификаты** | Подарочные сертификаты — цены, коэффициенты, интеграция с Cardinal |
 | **Прибыль** | Журнал с фильтрацией, сортировкой, пагинацией |
 | **API Ключи** | FunPay Golden Key, User-Agent, Groq, OpenRouter |
-| **Настройки** | Ежедневный отчёт, управление сессиями и аккаунтами |
+| **Настройки** | Ежедневный отчёт, сессии, аккаунты, бэкап базы данных |
 | **Уведомления** | Автоматические отчёты, мониторинг СБП-ставок, контроль хвостов |
 
 ## Установка
 
-### 1. Подготовка сервера (Ubuntu 22.04+)
+Один скрипт ставит всё: Telegram-бота, веб-панель, Nginx и SSL-сертификат. Нужен чистый сервер Ubuntu 22.04+ с root-доступом и домен, A-запись которого уже указывает на IP сервера.
 
 ```bash
-apt update && apt upgrade -y
-apt install -y python3 python3-venv python3-pip nginx certbot python3-certbot-nginx git
+curl -fsSL https://raw.githubusercontent.com/pratokwau/drebol-bot/main/install.sh | bash
 ```
 
-### 2. Клонировать и настроить
+Или в два шага:
 
 ```bash
 git clone https://github.com/pratokwau/drebol-bot.git /root/drebol-bot
-cd /root/drebol-bot
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-mkdir -p data
+bash /root/drebol-bot/install.sh
 ```
 
-### 3. Переменные окружения
+Скрипт спросит по порядку:
+
+1. **Домен сайта** — например `panel.example.com`
+2. **Логин и пароль веб-панели** — пароль можно не вводить, тогда сгенерируется автоматически
+3. **Email для SSL** — по умолчанию `admin@домен`
+4. **Токен Telegram-бота** (от [@BotFather](https://t.me/BotFather)) и твой **Telegram ID**
+
+Дальше — без вопросов: ставит системные пакеты, клонирует и настраивает проект, поднимает venv и зависимости, создаёт два systemd-сервиса (`drebol-bot` — телеграм-бот, `drebol-web` — веб-панель), настраивает Nginx под домен и получает SSL-сертификат Let's Encrypt. В конце выводит адрес сайта и логин/пароль.
+
+### Обслуживание
 
 ```bash
-cat > .env << 'EOF'
-WEB_USERNAME=admin
-WEB_PASSWORD=ваш_секретный_пароль
-OPENROUTER_API_KEY=sk-or-...
-EOF
-```
-
-| Переменная | Описание |
-|-----------|----------|
-| `WEB_USERNAME` | Логин для входа на сайт |
-| `WEB_PASSWORD` | Пароль для входа |
-| `OPENROUTER_API_KEY` | Ключ OpenRouter для AI-сопоставления лотов (опционально) |
-
-### 4. Проверить запуск
-
-```bash
-source .venv/bin/activate
-python -m uvicorn webapp.app:app --host 127.0.0.1 --port 8090
-```
-
-### 5. Systemd-сервис
-
-```bash
-cat > /etc/systemd/system/drebol-bot.service << 'EOF'
-[Unit]
-Description=Drebolbot Web
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root/drebol-bot
-ExecStart=/root/drebol-bot/.venv/bin/python -m uvicorn webapp.app:app --host 127.0.0.1 --port 8090
-Restart=always
-RestartSec=5
-EnvironmentFile=/root/drebol-bot/.env
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable drebol-bot
-systemctl start drebol-bot
-```
-
-### 6. Nginx + SSL
-
-```bash
-cat > /etc/nginx/sites-available/drebol-bot << 'EOF'
-server {
-    server_name ваш-домен.ru;
-
-    location / {
-        proxy_pass http://127.0.0.1:8090;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-EOF
-
-ln -sf /etc/nginx/sites-available/drebol-bot /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
-certbot --nginx -d ваш-домен.ru --non-interactive --agree-tos --email ваш@email.ru
-```
-
-## Обслуживание
-
-```bash
-# Обновление
-cd /root/drebol-bot && git pull && systemctl restart drebol-bot
+# Обновление (код + рестарт обоих сервисов)
+cd /root/drebol-bot && git pull && systemctl restart drebol-bot drebol-web
+# То же самое можно сделать кнопкой "Обновить с GitHub" в Настройках сайта
 
 # Логи
-journalctl -u drebol-bot -f
+journalctl -u drebol-bot -f      # телеграм-бот
+journalctl -u drebol-web -f      # веб-панель
 
 # Статус
-systemctl status drebol-bot
+systemctl status drebol-bot drebol-web
 ```
+
+### Резервное копирование
+
+В **Настройки → База данных** можно скачать zip-архив со всеми данными (заказы, цены, сертификаты, демпинг, уведомления, прибыль, сессии) и загрузить его обратно — например при переезде на другой сервер. После импорта сервисы перезапускаются автоматически.
+
+### Повторная настройка
+
+Изменить домен, логин, пароль или токен бота без переустановки:
+
+```bash
+cd /root/drebol-bot
+python3 install.py --domain новый-домен.ru --web-username admin --web-password новый_пароль --token НОВЫЙ_ТОКЕН --admin-id ID
+systemctl restart drebol-bot drebol-web
+```
+Аргументы можно опустить — тогда скрипт спросит их в терминале.
 
 ## Структура проекта
 
@@ -179,9 +128,11 @@ drebol-bot/
 ├── database.py                 # SQLite базы данных
 ├── config.py                   # Конфигурация (ADMIN_ID)
 ├── base_store.py               # Хранилище файлов
+├── install.sh                  # Установщик: бот + веб + Nginx + SSL
+├── install.py                  # Пишет .env, вызывается из install.sh
 ├── requirements.txt
 ├── .env                        # Секреты (не в git)
-└── data/                       # Данные (создаётся автоматически)
+└── data/                       # Данные (создаётся автоматически, бэкапится из Настроек)
     ├── minprice.json
     ├── demping.json
     ├── demping_settings.json

@@ -1,14 +1,19 @@
+import io
 import os
 import subprocess
+import zipfile
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from database import web_db
 
 from .shared import _login_pair, redirect_to, require_session, templates
 
 router = APIRouter(prefix="/settings")
+
+_RESTART_CMD = "sleep 1 && (pkill -9 -f 'uvicorn webapp.app:app' || true) && sleep 1 && systemctl restart drebol-bot drebol-web"
 
 
 @router.get("")
@@ -100,9 +105,80 @@ async def settings_update(user=Depends(require_session)):
         result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)) or ".")
         output = result.stdout.strip() + result.stderr.strip()
         subprocess.Popen(
-            ["sh", "-c", "sleep 1 && pkill -9 -f uvicorn && sleep 2 && systemctl restart drebol-bot"],
+            ["sh", "-c", _RESTART_CMD],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         return JSONResponse({"ok": True, "output": output[:500]})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
+
+
+@router.get("/export-db")
+async def settings_export_db(user=Depends(require_session)):
+    from base_store import BASE_DIR
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if BASE_DIR.exists():
+            for path in BASE_DIR.rglob("*"):
+                if path.is_file():
+                    zf.write(path, arcname=str(path.relative_to(BASE_DIR)))
+    buf.seek(0)
+
+    filename = f"drebolbot-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import-db")
+async def settings_import_db(request: Request, user=Depends(require_session)):
+    from base_store import BASE_DIR
+
+    form = await request.form()
+    file = form.get("file")
+    if not file or not hasattr(file, "read"):
+        return JSONResponse({"ok": False, "error": "Файл не выбран"}, status_code=400)
+
+    try:
+        content = await file.read()
+        zbuf = io.BytesIO(content)
+        with zipfile.ZipFile(zbuf) as zf:
+            names = [n for n in zf.namelist() if not n.endswith("/")]
+            if not names:
+                return JSONResponse({"ok": False, "error": "Архив пуст"}, status_code=400)
+
+            base_resolved = BASE_DIR.resolve()
+            extracted = 0
+            for name in names:
+                dest = (BASE_DIR / name).resolve()
+                if base_resolved not in dest.parents and dest != base_resolved:
+                    continue  # защита от zip-slip — путь вне data/
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(name) as src, open(dest, "wb") as out:
+                    out.write(src.read())
+                extracted += 1
+    except zipfile.BadZipFile:
+        return JSONResponse({"ok": False, "error": "Файл повреждён или это не .zip"}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
+
+    try:
+        import base_store
+        for conn in list(base_store._CONNS.values()):
+            try:
+                conn.close()
+            except Exception:
+                pass
+        base_store._CONNS.clear()
+    except Exception:
+        pass
+
+    subprocess.Popen(
+        ["sh", "-c", _RESTART_CMD],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+    return JSONResponse({"ok": True, "extracted": extracted})
