@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
@@ -29,30 +31,25 @@ async def orders_page(
     from handlers.funpay_admin import (
         clean_price,
         extract_order_amount,
-        fetch_funpay_sales_window,
-        find_funpay_sale,
+        fetch_funpay_sales,
+        find_funpay_sale_by_filter,
         get_auto_buy_prices,
         make_funpay_account,
     )
 
     cards, error = [], ""
+    deep_search = False
+    search_query = ""
     target = max(10, limit)
 
     try:
         gk, ua = db.get_config()
         if gk:
-            account = make_funpay_account(gk, ua)
-            fetched = []
-            offset = 0
-            while len(fetched) < target:
-                batch = fetch_funpay_sales_window(account, offset=offset, limit=500)
-                if not batch:
-                    break
-                fetched.extend(batch)
-                offset += 500
-                if len(batch) < 500:
-                    break
-            fetched = fetched[:target]
+            def _fetch_listing():
+                account = make_funpay_account(gk, ua)
+                return fetch_funpay_sales(account, limit=target)
+
+            fetched = await asyncio.to_thread(_fetch_listing)
 
             for sale in fetched:
                 order_id = str(getattr(sale, "id", ""))
@@ -90,13 +87,17 @@ async def orders_page(
             query = q.strip().lower()
             query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
             query = query.strip("/").lstrip("#").lower()
+            search_query = query
             found = [c for c in cards if query in str(c["id"]).lower() or query in str(c.get("product", "")).lower()]
             if not found:
                 try:
                     gk, ua = db.get_config()
                     if gk:
-                        account = make_funpay_account(gk, ua)
-                        sale, _ = find_funpay_sale(account, query, max_depth=5000)
+                        def _fast_lookup():
+                            account = make_funpay_account(gk, ua)
+                            return find_funpay_sale_by_filter(account, query)
+
+                        sale = await asyncio.to_thread(_fast_lookup)
                         if sale:
                             product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
                             sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
@@ -114,8 +115,12 @@ async def orders_page(
                                 "profit": profit,
                                 "variants": get_auto_buy_prices(product_name, "", 0)[:4] if cost is None else [],
                             })
+                        else:
+                            # Не нашли одним запросом по фильтру FunPay — дальше ищем
+                            # порциями на клиенте, не блокируя сервер на весь скан истории.
+                            deep_search = True
                 except Exception:
-                    pass
+                    deep_search = True
             cards = found
     except Exception as exc:
         error = f"Ошибка загрузки заказов: {exc}"
@@ -130,10 +135,74 @@ async def orders_page(
             "mode": mode,
             "limit": limit,
             "q": q,
+            "deep_search": deep_search,
+            "search_query": search_query,
             "stats": _all_profit_stats(_load_admin_profits()),
             "total_loaded": len(cards),
         },
     )
+
+
+@router.get("/search-chunk")
+async def orders_search_chunk(
+    request: Request,
+    q: str = "",
+    cursor: str = "",
+    user=Depends(require_session),
+):
+    """
+    Ищет заказ порциями по ~350 штук за вызов, продолжая с курсора предыдущего вызова.
+    Клиент вызывает этот эндпоинт в цикле, пока не найдёт заказ или не получит exhausted=true.
+    Так один глубокий поиск не блокирует сервер на минуты для всех пользователей разом.
+    """
+    from handlers.funpay_admin import clean_price, find_funpay_sale_chunk, get_auto_buy_prices, make_funpay_account
+
+    query = q.strip().lower()
+    query = query.replace("https://funpay.com/orders/", "").replace("http://funpay.com/orders/", "")
+    query = query.strip("/").lstrip("#")
+    if not query:
+        return JSONResponse({"ok": False, "error": "Пустой запрос"}, status_code=400)
+
+    gk, ua = db.get_config()
+    if not gk:
+        return JSONResponse({"ok": False, "error": "Golden Key не настроен"}, status_code=400)
+
+    def _run():
+        account = make_funpay_account(gk, ua)
+        return find_funpay_sale_chunk(account, query, cursor=cursor or None, chunk_size=350)
+
+    try:
+        sale, checked, next_cursor = await asyncio.to_thread(_run)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)[:300]}, status_code=500)
+
+    order = None
+    if sale is not None:
+        product_name = getattr(sale, "description", getattr(sale, "product_name", ""))
+        sell_price = _money(clean_price(getattr(sale, "price", getattr(sale, "amount", 0))))
+        order_id = str(getattr(sale, "id", ""))
+        existing_cost = orders_db.get_prime_cost(order_id)
+        cost = _money(existing_cost) if existing_cost is not None else None
+        profit = round((sell_price * 0.97) - cost, 2) if cost is not None else None
+        order = {
+            "id": order_id,
+            "game": _sale_game(sale),
+            "product": product_name,
+            "sell_price": sell_price,
+            "date": str(getattr(sale, "date", getattr(sale, "created_at", ""))),
+            "cost": cost,
+            "profit": profit,
+            "variants": get_auto_buy_prices(product_name, "", 0)[:4] if cost is None else [],
+        }
+
+    return JSONResponse({
+        "ok": True,
+        "found": order is not None,
+        "order": order,
+        "checked": checked,
+        "next_cursor": next_cursor,
+        "exhausted": next_cursor is None,
+    })
 
 
 @router.post("/save-cost")

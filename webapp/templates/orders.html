@@ -34,7 +34,19 @@
   </div>
 {% endif %}
 
-<section class="cards-grid">
+{% if deep_search %}
+<div class="panel animate-in" id="deep-search-panel" data-query="{{ search_query }}">
+  <div class="flex items-center justify-between gap-12 flex-wrap">
+    <div class="flex items-center gap-12">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:dot-pulse 1.2s ease infinite;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span id="deep-search-status">Заказ #{{ search_query }} не найден в последних загруженных — ищу в старой истории порциями по 350...</span>
+    </div>
+    <button type="button" class="ghost sm" id="deep-search-stop">Остановить</button>
+  </div>
+</div>
+{% endif %}
+
+<section class="cards-grid" id="cards-grid">
   {% for card in cards %}
     <article class="order-card animate-in" style="animation-delay:{{ loop.index0 * 0.03 }}s" data-order-card="{{ card.id }}">
       <div class="order-top">
@@ -99,46 +111,193 @@
       <div class="order-feedback" data-field="feedback"></div>
     </article>
   {% else %}
-    <div class="empty-state" style="grid-column:1/-1;">
+    {% if not deep_search %}
+    <div class="empty-state" id="empty-state" style="grid-column:1/-1;">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
       <p>Заказы не найдены</p>
     </div>
+    {% endif %}
   {% endfor %}
 </section>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  document.querySelectorAll("[data-ajax-order]").forEach(function(form) {
-    form.addEventListener("submit", function(e) {
-      e.preventDefault();
-      var card = form.closest("[data-order-card]");
-      var feedback = card.querySelector('[data-field="feedback"]');
-      var sellInput = card.querySelector('.sell-price-form input[name="sell_price"]');
-      form.querySelectorAll("[data-sync-sell]").forEach(function(input) {
-        input.value = sellInput ? sellInput.value : input.value;
-      });
+  // Делегированный обработчик — работает и для карточек, добавленных динамически (глубокий поиск).
+  document.addEventListener("submit", function(e) {
+    var form = e.target.closest("[data-ajax-order]");
+    if (!form) return;
+    e.preventDefault();
 
-      var btn = form.querySelector("button[type='submit']");
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = "Сохранено";
-        btn.style.background = "var(--green)";
-        btn.style.borderColor = "var(--green)";
-        btn.style.color = "#fff";
-      }
-      if (feedback) {
-        feedback.textContent = "Сохранено";
-        feedback.classList.remove("error");
-      }
-
-      fetch(form.action, { method: "POST", body: new FormData(form) });
-
-      card.style.transition = "opacity 0.3s ease, transform 0.3s ease";
-      card.style.opacity = "0";
-      card.style.transform = "scale(0.97)";
-      setTimeout(function() { card.remove(); }, 300);
+    var card = form.closest("[data-order-card]");
+    var feedback = card.querySelector('[data-field="feedback"]');
+    var sellInput = card.querySelector('.sell-price-form input[name="sell_price"]');
+    form.querySelectorAll("[data-sync-sell]").forEach(function(input) {
+      input.value = sellInput ? sellInput.value : input.value;
     });
+
+    var btn = form.querySelector("button[type='submit']");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Сохранено";
+      btn.style.background = "var(--green)";
+      btn.style.borderColor = "var(--green)";
+      btn.style.color = "#fff";
+    }
+    if (feedback) {
+      feedback.textContent = "Сохранено";
+      feedback.classList.remove("error");
+    }
+
+    fetch(form.action, { method: "POST", body: new FormData(form) });
+
+    card.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+    card.style.opacity = "0";
+    card.style.transform = "scale(0.97)";
+    setTimeout(function() { card.remove(); }, 300);
   });
+
+  // ═══ Глубокий поиск: заказ не нашёлся быстрым фильтром FunPay,
+  // ищем порциями по ~350 через /orders/search-chunk, не блокируя сервер. ═══
+  (function() {
+    var panel = document.getElementById("deep-search-panel");
+    if (!panel) return;
+
+    var query = panel.dataset.query || "";
+    var statusEl = document.getElementById("deep-search-status");
+    var stopBtn = document.getElementById("deep-search-stop");
+    var grid = document.getElementById("cards-grid");
+    var emptyState = document.getElementById("empty-state");
+
+    var stopped = false;
+    var totalChecked = 0;
+    var cursor = "";
+    var MAX_CHECKED = 20000; // предохранитель от бесконечного поиска по всей истории
+
+    stopBtn.addEventListener("click", function() {
+      stopped = true;
+      statusEl.textContent = "Поиск остановлен (проверено " + totalChecked + " заказов).";
+      stopBtn.remove();
+    });
+
+    function cashbackLabel(v) { return v.cashback_label || ""; }
+
+    function renderFoundCard(o) {
+      var costLabel = (o.cost !== null && o.cost !== undefined) ? o.cost.toFixed(2) : "0.00";
+      var profitVal = (o.profit !== null && o.profit !== undefined) ? o.profit : null;
+      var profitClass = profitVal > 0 ? "text-green" : (profitVal < 0 ? "text-red" : "");
+      var profitLabel = profitVal !== null ? profitVal.toFixed(2) : "—";
+      var statePill = (o.cost !== null && o.cost !== undefined) ? "pill ok" : "pill warn";
+      var stateText = (o.cost !== null && o.cost !== undefined) ? "закуп есть" : "без закупа";
+
+      var variantsHtml = "";
+      if (o.variants && o.variants.length) {
+        var sorted = o.variants.slice().sort(function(a, b) {
+          return (b.cashback_label || "").localeCompare(a.cashback_label || "");
+        });
+        variantsHtml = '<div class="variants">' + sorted.map(function(v) {
+          return '' +
+            '<form method="post" action="/orders/save-cost?ajax=1" data-ajax-order>' +
+            '<input type="hidden" name="order_id" value="' + o.id + '">' +
+            '<input type="hidden" name="buy_price" value="' + v.total_cost + '">' +
+            '<input type="hidden" name="sell_price" value="' + o.sell_price + '" data-sync-sell>' +
+            '<input type="hidden" name="order_date" value="' + o.date + '">' +
+            '<input type="hidden" name="ajax" value="1">' +
+            '<button type="submit">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> ' +
+            v.title + ' · ' + cashbackLabel(v) + ' · ' + Number(v.total_cost).toFixed(2) + ' ₽' +
+            '</button>' +
+            '</form>';
+        }).join("") + '</div>';
+      }
+
+      var html = '' +
+        '<article class="order-card animate-in" data-order-card="' + o.id + '">' +
+        '<div class="order-top">' +
+        '<div><span class="label">Заказ #' + o.id + '</span><h2>' + (o.game || "Без игры") + '</h2></div>' +
+        '<span class="' + statePill + '" data-field="state">' + stateText + '</span>' +
+        '</div>' +
+        '<p class="order-product">' + o.product + '</p>' +
+        '<div class="order-meta">' +
+        '<span>' + o.date + '</span>' +
+        '<span>Продажа: <b data-field="sell">' + Number(o.sell_price).toFixed(2) + ' ₽</b></span>' +
+        '<span>Закуп: <b data-field="buy">' + costLabel + ' ₽</b></span>' +
+        '<span>Чистыми: <b data-field="profit" class="' + profitClass + '">' + profitLabel + ' ₽</b></span>' +
+        '</div>' +
+        variantsHtml +
+        '<form method="post" action="/orders/save-price?ajax=1" class="sell-price-form" data-ajax-order>' +
+        '<input type="hidden" name="order_id" value="' + o.id + '">' +
+        '<input type="hidden" name="buy_price" value="' + costLabel + '">' +
+        '<input type="hidden" name="order_date" value="' + o.date + '">' +
+        '<input type="hidden" name="ajax" value="1">' +
+        '<input name="sell_price" value="' + Number(o.sell_price).toFixed(2) + '" placeholder="Цена продажи">' +
+        '<button class="ghost" type="submit">Изменить</button>' +
+        '</form>' +
+        '<form method="post" action="/orders/save-cost?ajax=1" class="manual-cost" data-ajax-order>' +
+        '<input type="hidden" name="order_id" value="' + o.id + '">' +
+        '<input type="hidden" name="sell_price" value="' + o.sell_price + '" data-sync-sell>' +
+        '<input type="hidden" name="order_date" value="' + o.date + '">' +
+        '<input type="hidden" name="ajax" value="1">' +
+        '<input name="buy_price" placeholder="Закуп вручную">' +
+        '<button class="ghost" type="submit">Сохранить</button>' +
+        '</form>' +
+        '<div class="order-feedback" data-field="feedback"></div>' +
+        '</article>';
+
+      if (emptyState) emptyState.remove();
+      grid.insertAdjacentHTML("afterbegin", html);
+    }
+
+    function step() {
+      if (stopped) return;
+      var url = "/orders/search-chunk?q=" + encodeURIComponent(query) + "&cursor=" + encodeURIComponent(cursor);
+      fetch(url, { headers: { "x-requested-with": "fetch" } })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (stopped) return;
+          if (!data.ok) {
+            statusEl.textContent = "Ошибка поиска: " + (data.error || "неизвестная");
+            stopBtn.remove();
+            return;
+          }
+          totalChecked += data.checked || 0;
+
+          if (data.found && data.order) {
+            renderFoundCard(data.order);
+            statusEl.textContent = "Найден заказ #" + data.order.id + " (проверено " + totalChecked + ")";
+            panel.style.borderColor = "var(--green-border)";
+            stopBtn.remove();
+            return;
+          }
+
+          if (data.exhausted) {
+            statusEl.textContent = "Заказ #" + query + " не найден во всей истории (проверено " + totalChecked + ").";
+            if (!grid.querySelector("[data-order-card]") && !emptyState) {
+              grid.insertAdjacentHTML("beforeend",
+                '<div class="empty-state" style="grid-column:1/-1;"><p>Заказы не найдены</p></div>');
+            }
+            stopBtn.remove();
+            return;
+          }
+
+          statusEl.textContent = "Ищу заказ #" + query + "... проверено " + totalChecked + " заказов";
+
+          if (totalChecked >= MAX_CHECKED) {
+            statusEl.textContent = "Достигнут предел поиска (" + MAX_CHECKED + " заказов). Заказ #" + query + " не найден.";
+            stopBtn.remove();
+            return;
+          }
+
+          cursor = data.next_cursor || "";
+          step();
+        })
+        .catch(function(err) {
+          statusEl.textContent = "Ошибка сети: " + err.message;
+          stopBtn.remove();
+        });
+    }
+
+    step();
+  })();
 </script>
 {% endblock %}

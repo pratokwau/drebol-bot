@@ -187,6 +187,73 @@ def find_funpay_sale(account: Account, order_id: str, max_depth: int = 3000, sta
     return None, len(sales)
 
 
+def find_funpay_sale_by_filter(account: Account, order_id: str, state=None):
+    """Быстрый поиск через серверный фильтр FunPay (?id=...) — один запрос, без сканирования истории."""
+    needle = str(order_id).strip().lstrip("#").upper()
+    if not needle or not hasattr(account, "get_sales"):
+        return None
+    try:
+        result = account.get_sales(id=needle, state=state)
+    except Exception:
+        return None
+    sales = result[1] if isinstance(result, tuple) else result
+    for sale in sales or []:
+        if str(getattr(sale, "id", "")).upper() == needle:
+            return sale
+    return None
+
+
+def find_funpay_sale_chunk(account: Account, order_id: str, cursor: str | None = None, chunk_size: int = 350, state=None):
+    """
+    Ищет заказ порциями по chunk_size (по умолчанию ~350), продолжая с переданного курсора
+    вместо повторного сканирования истории с начала на каждый вызов.
+
+    :return: (найденный_заказ_или_None, сколько_проверено_за_этот_вызов, курсор_для_следующего_вызова_или_None)
+    """
+    needle = str(order_id).strip().lstrip("#").upper()
+
+    if not hasattr(account, "get_sales"):
+        sales = fetch_funpay_sales(account, limit=chunk_size, state=state)
+        for sale in sales:
+            if str(getattr(sale, "id", "")).upper() == needle:
+                return sale, len(sales), None
+        return None, len(sales), None
+
+    checked = 0
+    start_from = cursor if cursor else ""
+    locale = None
+    subcategories = None
+
+    while start_from is not None and checked < chunk_size:
+        last_error = None
+        for attempt in range(3):
+            try:
+                result = _get_sales_page(account, start_from, locale, subcategories, state=state)
+                break
+            except Exception as e:
+                last_error = e
+                time.sleep(1)
+        else:
+            raise last_error
+
+        start_from = result[0]
+        page_sales = result[1]
+        locale = result[2]
+        subcategories = result[3]
+
+        for sale in page_sales:
+            checked += 1
+            if str(getattr(sale, "id", "")).upper() == needle:
+                return sale, checked, start_from
+            if checked >= chunk_size:
+                break
+
+        if start_from is not None and checked < chunk_size:
+            time.sleep(1)
+
+    return None, checked, start_from
+
+
 def extract_order_id(raw_text: str) -> str | None:
     text = (raw_text or "").strip()
     match = re.search(r'/orders/([A-Za-z0-9]+)/?', text)
